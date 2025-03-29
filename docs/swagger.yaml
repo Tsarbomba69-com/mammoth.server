@@ -1,0 +1,147 @@
+basePath: /
+definitions:
+  schemas.DBConnectionRequest:
+    properties:
+      dbname:
+        type: string
+      host:
+        type: string
+      password:
+        type: string
+      port:
+        type: integer
+      user:
+        type: string
+    required:
+    - dbname
+    - host
+    - password
+    - port
+    - user
+    type: object
+  schemas.DBConnectionResponse:
+    properties:
+      created_at:
+        type: string
+      dbname:
+        type: string
+      host:
+        type: string
+      id:
+        type: integer
+      port:
+        type: integer
+      updated_at:
+        type: string
+      user:
+        type: string
+    type: object
+  schemas.PageResponse-schemas_ProjectResponse:
+    properties:
+      entries:
+        items:
+          $ref: '#/definitions/schemas.ProjectResponse'
+        type: array
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+    type: object
+  schemas.ProjectRequest:
+    properties:
+      description:
+        type: string
+      name:
+        type: string
+      source:
+        $ref: '#/definitions/schemas.DBConnectionRequest'
+      target:
+        $ref: '#/definitions/schemas.DBConnectionRequest'
+    required:
+    - description
+    - name
+    - source
+    - target
+    type: object
+  schemas.ProjectResponse:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      source:
+        $ref: '#/definitions/schemas.DBConnectionResponse'
+      target:
+        $ref: '#/definitions/schemas.DBConnectionResponse'
+      updated_at:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: This is a database (PostgreSQL) schema comparsion and migration.
+  title: Mammoth Server API
+  version: "1.0"
+paths:
+  /api/v1/projects:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves a paginated list of projects with their database connections
+      parameters:
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Number of items per page (default: 10, max: 100)'
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/schemas.PageResponse-schemas_ProjectResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      summary: List all projects
+      tags:
+      - projects
+    post:
+      consumes:
+      - application/json
+      description: Create a new project with name and description
+      parameters:
+      - description: Project JSON
+        in: body
+        name: project
+        required: true
+        schema:
+          $ref: '#/definitions/schemas.ProjectRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/schemas.ProjectResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Create a project
+      tags:
+      - projects
+swagger: "2.0"

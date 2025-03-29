@@ -1,0 +1,19 @@
+version: '3.3'
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5400:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: always
+  
+volumes:
+  minio-data:
+  pgdata:
+    driver: local
