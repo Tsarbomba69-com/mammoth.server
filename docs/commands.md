@@ -21,3 +21,9 @@ swag init
 ```http
 http://localhost:8080/swagger/index.html
 ```
+
+#### Run tests
+
+```bash
+go test $test_dir -v
+```

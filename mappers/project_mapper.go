@@ -28,10 +28,10 @@ func ProjectToModel(request schemas.ProjectRequest) models.Project {
 func ProjectToResponse(project models.Project) schemas.ProjectResponse {
 	return schemas.ProjectResponse{
 		ID:          project.ID,
-		Name:        project.Name,
-		Description: project.Description,
 		CreatedAt:   project.CreatedAt,
 		UpdatedAt:   project.UpdatedAt,
+		Name:        project.Name,
+		Description: project.Description,
 		Source:      DBConnectionToResponse(&project.Source),
 		Target:      DBConnectionToResponse(&project.Target),
 	}
@@ -39,10 +39,12 @@ func ProjectToResponse(project models.Project) schemas.ProjectResponse {
 
 func DBConnectionToResponse(model *models.DBConnection) schemas.DBConnectionResponse {
 	return schemas.DBConnectionResponse{
-		ID:     model.ID,
-		Host:   model.Host,
-		Port:   model.Port,
-		User:   model.User,
-		DBName: model.DBName,
+		ID:        model.ID,
+		CreatedAt: model.CreatedAt,
+		UpdatedAt: model.UpdatedAt,
+		Host:      model.Host,
+		Port:      model.Port,
+		User:      model.User,
+		DBName:    model.DBName,
 	}
 }

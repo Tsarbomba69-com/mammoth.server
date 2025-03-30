@@ -29,10 +29,6 @@ func CreateProject(c *gin.Context) {
 	}
 
 	project := mappers.ProjectToModel(input)
-	repositories.Context.Create(&project.Source)
-	repositories.Context.Create(&project.Target)
-	project.SourceID = project.Source.ID
-	project.TargetID = project.Target.ID
 	repositories.Context.Create(&project)
 	c.JSON(http.StatusCreated, mappers.ProjectToResponse(project))
 }

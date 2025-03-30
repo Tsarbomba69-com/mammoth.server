@@ -14,7 +14,7 @@ type DBConnectionRequest struct {
 
 type ProjectRequest struct {
 	Name        string              `json:"name" binding:"required"`
-	Description string              `json:"description" binding:"required"`
+	Description string              `json:"description"`
 	Source      DBConnectionRequest `json:"source" binding:"required"`
 	Target      DBConnectionRequest `json:"target" binding:"required"`
 }
