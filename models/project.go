@@ -1,9 +1,13 @@
 package models
 
 import (
+	"fmt"
+
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
+// TODO: Password should be encrypted and not stored in plain text
 type DBConnection struct {
 	gorm.Model
 	Host     string `json:"host"`
@@ -21,4 +25,39 @@ type Project struct {
 	Source      DBConnection `json:"source" gorm:"foreignKey:SourceID;constraint:OnDelete:CASCADE;"`
 	TargetID    uint         `json:"target_id"`
 	Target      DBConnection `json:"target" gorm:"foreignKey:TargetID;constraint:OnDelete:CASCADE;"`
+}
+
+// Connect establishes a connection to the database
+func (dbc *DBConnection) Connect() (*gorm.DB, error) {
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=disable",
+		dbc.Host,
+		dbc.User,
+		dbc.Password,
+		dbc.DBName,
+		dbc.Port,
+	)
+
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to database: %v", err)
+	}
+
+	return db, nil
+}
+
+// ConnectForProject establishes connections to both source and target databases
+func (p *Project) ConnectForProject() (*gorm.DB, *gorm.DB, error) {
+	// Connect to source database
+	sourceDB, err := p.Source.Connect()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to connect to source database: %v", err)
+	}
+
+	// Connect to target database
+	targetDB, err := p.Target.Connect()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to connect to target database: %v", err)
+	}
+
+	return sourceDB, targetDB, nil
 }

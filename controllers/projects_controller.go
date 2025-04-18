@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/Tsarbomba69-com/mammoth.server/models"
 	"github.com/Tsarbomba69-com/mammoth.server/repositories"
 	"github.com/Tsarbomba69-com/mammoth.server/schemas"
+	"github.com/Tsarbomba69-com/mammoth.server/services"
 	"github.com/gin-gonic/gin"
 )
 
@@ -60,7 +62,7 @@ func GetProjects(c *gin.Context) {
 	offset := (page - 1) * limit
 	repositories.Context.Preload("Source").Preload("Target").Limit(limit).Offset(offset).Find(&projects)
 	repositories.Context.Model(&models.Project{}).Count(&total)
-	var projectResponses []schemas.ProjectResponse
+	var projectResponses []schemas.ProjectResponse = []schemas.ProjectResponse{}
 
 	for _, project := range projects {
 		projectResponses = append(projectResponses, mappers.ProjectToResponse(project))
@@ -72,4 +74,43 @@ func GetProjects(c *gin.Context) {
 		"limit":   limit,
 		"entries": projectResponses,
 	})
+}
+
+// MigrateProject initiates database migration for a specific project
+// @Summary Migrate database
+// @Description Initiates a migration from the source database to the target database for the specified project
+// @Tags projects
+// @Accept  json
+// @Produce  json
+// @Param   id   path      string  true  "Project ID"
+// @Success 200  {object}  map[string]any
+// @Failure 400  {object}  map[string]any
+// @Failure 404  {object}  map[string]any
+// @Failure 500  {object}  map[string]any
+// @Router  /api/v1/projects/{id}/migrate [post]
+func MigrateProject(c *gin.Context) {
+	projectID := c.Param("id")
+
+	// Get project from database
+	var project models.Project
+	var sourceSchema []services.TableSchema
+	if err := repositories.Context.Preload("Source").Preload("Target").First(&project, projectID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Project not found"})
+		return
+	}
+	var source, target, err = project.ConnectForProject()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to databases"})
+		return
+	}
+
+	log.Println("Starting migration...")
+	sourceSchema, err = services.DumpSchemaAST(source)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to dump schema"})
+	}
+
+	log.Println("Starting migration...", sourceSchema)
+	log.Println("Source DB:", source)
+	log.Println("Target DB:", target)
 }
