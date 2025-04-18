@@ -8,9 +8,10 @@ import (
 )
 
 type TableSchema struct {
-	Name    string       `json:"name"`
-	Columns []ColumnInfo `json:"columns"`
-	Indexes []IndexInfo  `json:"indexes"`
+	Name        string           `json:"name"`
+	Columns     []ColumnInfo     `json:"columns"`
+	Indexes     []IndexInfo      `json:"indexes"`
+	ForeignKeys []ForeignKeyInfo `json:"foreign_keys"`
 }
 
 type ColumnInfo struct {
@@ -37,15 +38,19 @@ type SchemaDiff struct {
 }
 
 type TableDiff struct {
-	Name            string         `json:"table_name"`
-	ColumnsAdded    []ColumnInfo   `json:"columns_added"`
-	ColumnsRemoved  []ColumnInfo   `json:"columns_removed"`
-	ColumnsModified []ColumnChange `json:"columns_modified"`
-	ColumnsSame     []ColumnInfo   `json:"columns_same"`
-	IndexesAdded    []IndexInfo    `json:"indexes_added"`
-	IndexesRemoved  []IndexInfo    `json:"indexes_removed"`
-	IndexesModified []IndexChange  `json:"indexes_modified"`
-	IndexesSame     []IndexInfo    `json:"indexes_same"`
+	Name                   string           `json:"table_name"`
+	ColumnsAdded           []ColumnInfo     `json:"columns_added"`
+	ColumnsRemoved         []ColumnInfo     `json:"columns_removed"`
+	ColumnsModified        []ColumnChange   `json:"columns_modified"`
+	ColumnsSame            []ColumnInfo     `json:"columns_same"`
+	IndexesAdded           []IndexInfo      `json:"indexes_added"`
+	IndexesRemoved         []IndexInfo      `json:"indexes_removed"`
+	IndexesModified        []IndexChange    `json:"indexes_modified"`
+	IndexesSame            []IndexInfo      `json:"indexes_same"`
+	ForeignKeyInfoAdded    []ForeignKeyInfo `json:"foreign_key_info_added"`
+	ForeignKeyInfoRemoved  []ForeignKeyInfo `json:"foreign_key_info_removed"`
+	ForeignKeyInfoModified []ForeignKeyInfo `json:"foreign_key_info_modified"`
+	ForeignKeyInfoSame     []ForeignKeyInfo `json:"foreign_key_info_same"`
 }
 
 type ColumnChange struct {
@@ -60,6 +65,15 @@ type IndexChange struct {
 	Source      IndexInfo `json:"source"`
 	Target      IndexInfo `json:"target"`
 	ChangedAttr []string  `json:"changed_attributes"`
+}
+
+type ForeignKeyInfo struct {
+	Name              string
+	Columns           []string
+	ReferencedTable   string
+	ReferencedColumns []string
+	OnDelete          string
+	OnUpdate          string
 }
 
 // TODO: Deal with constraints
@@ -107,6 +121,11 @@ func DumpSchemaAST(db *gorm.DB) ([]TableSchema, error) {
 			})
 		}
 
+		fks, err := GetForeignKeys(db, table)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get foreign keys for table %s: %v", table, err)
+		}
+		schema.ForeignKeys = fks
 		schemas = append(schemas, schema)
 	}
 
@@ -133,9 +152,10 @@ func CompareSchemas(source, target []TableSchema) SchemaDiff {
 	for name, targetTable := range targetTables {
 		if _, exists := sourceTables[name]; !exists {
 			diff.TablesAdded = append(diff.TablesAdded, TableDiff{
-				Name:         name,
-				ColumnsAdded: targetTable.Columns,
-				IndexesAdded: targetTable.Indexes,
+				Name:                name,
+				ColumnsAdded:        targetTable.Columns,
+				IndexesAdded:        targetTable.Indexes,
+				ForeignKeyInfoAdded: targetTable.ForeignKeys,
 			})
 		}
 	}
@@ -143,9 +163,10 @@ func CompareSchemas(source, target []TableSchema) SchemaDiff {
 	for name, sourceTable := range sourceTables {
 		if _, exists := targetTables[name]; !exists {
 			diff.TablesRemoved = append(diff.TablesRemoved, TableDiff{
-				Name:         name,
-				ColumnsAdded: sourceTable.Columns,
-				IndexesAdded: sourceTable.Indexes,
+				Name:                name,
+				ColumnsAdded:        sourceTable.Columns,
+				IndexesAdded:        sourceTable.Indexes,
+				ForeignKeyInfoAdded: sourceTable.ForeignKeys,
 			})
 		}
 	}
@@ -296,4 +317,64 @@ func stringSlicesEqual(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+func GetForeignKeys(db *gorm.DB, tableName string) ([]ForeignKeyInfo, error) {
+	query := `
+		SELECT
+			tc.constraint_name,
+			kcu.column_name,
+			ccu.table_name AS referenced_table,
+			ccu.column_name AS referenced_column,
+			rc.update_rule,
+			rc.delete_rule
+		FROM
+			information_schema.table_constraints AS tc
+		JOIN information_schema.key_column_usage AS kcu
+			ON tc.constraint_name = kcu.constraint_name
+			AND tc.table_name = kcu.table_name
+		JOIN information_schema.referential_constraints AS rc
+			ON tc.constraint_name = rc.constraint_name
+		JOIN information_schema.constraint_column_usage AS ccu
+			ON ccu.constraint_name = tc.constraint_name
+		WHERE
+			tc.constraint_type = 'FOREIGN KEY'
+			AND tc.table_name = $1
+		ORDER BY
+			tc.constraint_name, kcu.ordinal_position;
+	`
+
+	rows, err := db.Raw(query, tableName).Rows()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	constraintMap := map[string]*ForeignKeyInfo{}
+
+	for rows.Next() {
+		var name, column, refTable, refColumn, onUpdate, onDelete string
+		if err := rows.Scan(&name, &column, &refTable, &refColumn, &onUpdate, &onDelete); err != nil {
+			return nil, err
+		}
+
+		if _, exists := constraintMap[name]; !exists {
+			constraintMap[name] = &ForeignKeyInfo{
+				Name:            name,
+				ReferencedTable: refTable,
+				OnUpdate:        onUpdate,
+				OnDelete:        onDelete,
+			}
+		}
+		info := constraintMap[name]
+		info.Columns = append(info.Columns, column)
+		info.ReferencedColumns = append(info.ReferencedColumns, refColumn)
+	}
+
+	var result []ForeignKeyInfo
+	for _, fk := range constraintMap {
+		result = append(result, *fk)
+	}
+
+	return result, nil
 }

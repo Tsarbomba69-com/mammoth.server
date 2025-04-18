@@ -15,22 +15,30 @@ type MigrationScript struct {
 func Generate(diff SchemaDiff) MigrationScript {
 	var upSQL, downSQL strings.Builder
 
-	// Generate SQL for added tables
+	// Create tables first (without foreign keys)
 	for _, table := range diff.TablesAdded {
 		upSQL.WriteString(createTableSQL(table))
+		for _, fk := range table.ForeignKeyInfoAdded {
+			upSQL.WriteString(addForeignKeySQL(table.Name, fk))
+			downSQL.WriteString(dropForeignKeySQL(table.Name, fk.Name))
+		}
 		downSQL.WriteString(fmt.Sprintf("DROP TABLE %s;\n", quoteIdentifier(table.Name)))
 	}
 
-	// Generate SQL for removed tables (in down migration)
-	for _, table := range diff.TablesRemoved {
-		downSQL.WriteString(createTableSQL(table))
-		upSQL.WriteString(fmt.Sprintf("DROP TABLE %s;\n", quoteIdentifier(table.Name)))
-	}
-
-	// Generate SQL for modified tables
+	// Modified tables (columns only, for now)
 	for _, tableDiff := range diff.TablesModified {
 		upSQL.WriteString(alterTableSQL(tableDiff))
 		downSQL.WriteString(revertAlterTableSQL(tableDiff))
+	}
+
+	// Reverse: re-create removed tables (with FKs)
+	for _, table := range diff.TablesRemoved {
+		downSQL.WriteString(createTableSQL(table))
+		for _, fk := range table.ForeignKeyInfoAdded {
+			downSQL.WriteString(addForeignKeySQL(table.Name, fk))
+			upSQL.WriteString(dropForeignKeySQL(table.Name, fk.Name))
+		}
+		upSQL.WriteString(fmt.Sprintf("DROP TABLE %s;\n", quoteIdentifier(table.Name)))
 	}
 
 	return MigrationScript{
@@ -38,7 +46,6 @@ func Generate(diff SchemaDiff) MigrationScript {
 		Down: downSQL.String(),
 	}
 }
-
 func createTableSQL(tableDiff TableDiff) string {
 	var sql strings.Builder
 	sql.WriteString(fmt.Sprintf("CREATE TABLE %s (\n", quoteIdentifier(tableDiff.Name)))
@@ -132,6 +139,12 @@ func alterTableSQL(tableDiff TableDiff) string {
 		sql.WriteString(createIndexSQL(tableDiff.Name, change.Target))
 	}
 
+	// Modify foreign key (drop and recreate)
+	for _, change := range tableDiff.ForeignKeyInfoModified {
+		sql.WriteString(dropForeignKeySQL(tableDiff.Name, change.Name))
+		sql.WriteString(addForeignKeySQL(tableDiff.Name, change))
+	}
+
 	return sql.String()
 }
 
@@ -223,4 +236,24 @@ func dropIndexSQL(tableName string, idx IndexInfo) string {
 
 func quoteIdentifier(name string) string {
 	return fmt.Sprintf("\"%s\"", name)
+}
+
+func joinIdentifiers(cols []string) string {
+	var parts []string
+	for _, col := range cols {
+		parts = append(parts, quoteIdentifier(col))
+	}
+	return strings.Join(parts, ", ")
+}
+
+func addForeignKeySQL(table string, fk ForeignKeyInfo) string {
+	cols := joinIdentifiers(fk.Columns)
+	refCols := joinIdentifiers(fk.ReferencedColumns)
+
+	return fmt.Sprintf(`ALTER TABLE %s ADD CONSTRAINT %s FOREIGN KEY (%s) REFERENCES %s (%s) ON DELETE %s ON UPDATE %s;
+`, quoteIdentifier(table), quoteIdentifier(fk.Name), cols, quoteIdentifier(fk.ReferencedTable), refCols, fk.OnDelete, fk.OnUpdate)
+}
+
+func dropForeignKeySQL(table, constraint string) string {
+	return fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT %s;\n", quoteIdentifier(table), quoteIdentifier(constraint))
 }
