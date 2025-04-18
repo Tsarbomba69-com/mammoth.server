@@ -90,10 +90,9 @@ func GetProjects(c *gin.Context) {
 // @Router  /api/v1/projects/{id}/migrate [post]
 func MigrateProject(c *gin.Context) {
 	projectID := c.Param("id")
-
-	// Get project from database
 	var project models.Project
 	var sourceSchema []services.TableSchema
+	var targetSchema []services.TableSchema
 	if err := repositories.Context.Preload("Source").Preload("Target").First(&project, projectID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Project not found"})
 		return
@@ -109,8 +108,12 @@ func MigrateProject(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to dump schema"})
 	}
+	targetSchema, err = services.DumpSchemaAST(target)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to dump schema"})
+	}
 
-	log.Println("Starting migration...", sourceSchema)
-	log.Println("Source DB:", source)
-	log.Println("Target DB:", target)
+	diff := services.CompareSchemas(sourceSchema, targetSchema)
+	script := services.Generate(diff)
+	c.JSON(http.StatusOK, gin.H{"up": script.Up, "down": script.Down})
 }
