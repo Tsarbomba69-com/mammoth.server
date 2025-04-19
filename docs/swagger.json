@@ -92,9 +92,9 @@
                 }
             }
         },
-        "/api/v1/projects/{id}/migrate": {
+        "/api/v1/projects/{id}/compare": {
             "post": {
-                "description": "Initiates a migration from the source database to the target database for the specified project",
+                "description": "initiates schema comparison from the source database to the target database for the specified project",
                 "consumes": [
                     "application/json"
                 ],
@@ -104,7 +104,7 @@
                 "tags": [
                     "projects"
                 ],
-                "summary": "Migrate database",
+                "summary": "Compare database",
                 "parameters": [
                     {
                         "type": "string",
@@ -118,8 +118,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/schemas.SchemaComparisonResponse"
                         }
                     },
                     "400": {
@@ -265,6 +264,242 @@
                     "$ref": "#/definitions/schemas.DBConnectionResponse"
                 },
                 "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "schemas.SchemaComparisonResponse": {
+            "type": "object",
+            "properties": {
+                "differences": {
+                    "$ref": "#/definitions/services.SchemaDiff"
+                },
+                "migration_script": {
+                    "$ref": "#/definitions/services.MigrationScript"
+                }
+            }
+        },
+        "services.ColumnChange": {
+            "type": "object",
+            "properties": {
+                "changed_attributes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "source": {
+                    "$ref": "#/definitions/services.ColumnInfo"
+                },
+                "target": {
+                    "$ref": "#/definitions/services.ColumnInfo"
+                }
+            }
+        },
+        "services.ColumnInfo": {
+            "type": "object",
+            "properties": {
+                "data_type": {
+                    "type": "string"
+                },
+                "default": {
+                    "type": "string"
+                },
+                "is_nullable": {
+                    "type": "boolean"
+                },
+                "is_primary": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.ForeignKeyInfo": {
+            "type": "object",
+            "properties": {
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "onDelete": {
+                    "type": "string"
+                },
+                "onUpdate": {
+                    "type": "string"
+                },
+                "referencedColumns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "referencedTable": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.IndexChange": {
+            "type": "object",
+            "properties": {
+                "changed_attributes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "source": {
+                    "$ref": "#/definitions/services.IndexInfo"
+                },
+                "target": {
+                    "$ref": "#/definitions/services.IndexInfo"
+                }
+            }
+        },
+        "services.IndexInfo": {
+            "type": "object",
+            "properties": {
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "is_primary": {
+                    "type": "boolean"
+                },
+                "is_unique": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "services.MigrationScript": {
+            "type": "object",
+            "properties": {
+                "down": {
+                    "description": "SQL for reverting changes",
+                    "type": "string"
+                },
+                "up": {
+                    "description": "SQL for applying changes",
+                    "type": "string"
+                }
+            }
+        },
+        "services.SchemaDiff": {
+            "type": "object",
+            "properties": {
+                "summary": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "tables_added": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.TableDiff"
+                    }
+                },
+                "tables_modified": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.TableDiff"
+                    }
+                },
+                "tables_removed": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.TableDiff"
+                    }
+                },
+                "tables_same": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "services.TableDiff": {
+            "type": "object",
+            "properties": {
+                "columns_added": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.ColumnInfo"
+                    }
+                },
+                "columns_modified": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.ColumnChange"
+                    }
+                },
+                "columns_removed": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.ColumnInfo"
+                    }
+                },
+                "columns_same": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.ColumnInfo"
+                    }
+                },
+                "foreign_key_info_added": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.ForeignKeyInfo"
+                    }
+                },
+                "foreign_key_info_modified": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.ForeignKeyInfo"
+                    }
+                },
+                "indexes_added": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.IndexInfo"
+                    }
+                },
+                "indexes_modified": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.IndexChange"
+                    }
+                },
+                "indexes_removed": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.IndexInfo"
+                    }
+                },
+                "indexes_same": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/services.IndexInfo"
+                    }
+                },
+                "table_name": {
                     "type": "string"
                 }
             }

@@ -81,6 +81,161 @@ definitions:
       updated_at:
         type: string
     type: object
+  schemas.SchemaComparisonResponse:
+    properties:
+      differences:
+        $ref: '#/definitions/services.SchemaDiff'
+      migration_script:
+        $ref: '#/definitions/services.MigrationScript'
+    type: object
+  services.ColumnChange:
+    properties:
+      changed_attributes:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      source:
+        $ref: '#/definitions/services.ColumnInfo'
+      target:
+        $ref: '#/definitions/services.ColumnInfo'
+    type: object
+  services.ColumnInfo:
+    properties:
+      data_type:
+        type: string
+      default:
+        type: string
+      is_nullable:
+        type: boolean
+      is_primary:
+        type: boolean
+      name:
+        type: string
+    type: object
+  services.ForeignKeyInfo:
+    properties:
+      columns:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      onDelete:
+        type: string
+      onUpdate:
+        type: string
+      referencedColumns:
+        items:
+          type: string
+        type: array
+      referencedTable:
+        type: string
+    type: object
+  services.IndexChange:
+    properties:
+      changed_attributes:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      source:
+        $ref: '#/definitions/services.IndexInfo'
+      target:
+        $ref: '#/definitions/services.IndexInfo'
+    type: object
+  services.IndexInfo:
+    properties:
+      columns:
+        items:
+          type: string
+        type: array
+      is_primary:
+        type: boolean
+      is_unique:
+        type: boolean
+      name:
+        type: string
+    type: object
+  services.MigrationScript:
+    properties:
+      down:
+        description: SQL for reverting changes
+        type: string
+      up:
+        description: SQL for applying changes
+        type: string
+    type: object
+  services.SchemaDiff:
+    properties:
+      summary:
+        additionalProperties:
+          type: integer
+        type: object
+      tables_added:
+        items:
+          $ref: '#/definitions/services.TableDiff'
+        type: array
+      tables_modified:
+        items:
+          $ref: '#/definitions/services.TableDiff'
+        type: array
+      tables_removed:
+        items:
+          $ref: '#/definitions/services.TableDiff'
+        type: array
+      tables_same:
+        items:
+          type: string
+        type: array
+    type: object
+  services.TableDiff:
+    properties:
+      columns_added:
+        items:
+          $ref: '#/definitions/services.ColumnInfo'
+        type: array
+      columns_modified:
+        items:
+          $ref: '#/definitions/services.ColumnChange'
+        type: array
+      columns_removed:
+        items:
+          $ref: '#/definitions/services.ColumnInfo'
+        type: array
+      columns_same:
+        items:
+          $ref: '#/definitions/services.ColumnInfo'
+        type: array
+      foreign_key_info_added:
+        items:
+          $ref: '#/definitions/services.ForeignKeyInfo'
+        type: array
+      foreign_key_info_modified:
+        items:
+          $ref: '#/definitions/services.ForeignKeyInfo'
+        type: array
+      indexes_added:
+        items:
+          $ref: '#/definitions/services.IndexInfo'
+        type: array
+      indexes_modified:
+        items:
+          $ref: '#/definitions/services.IndexChange'
+        type: array
+      indexes_removed:
+        items:
+          $ref: '#/definitions/services.IndexInfo'
+        type: array
+      indexes_same:
+        items:
+          $ref: '#/definitions/services.IndexInfo'
+        type: array
+      table_name:
+        type: string
+    type: object
 host: localhost:8080
 info:
   contact: {}
@@ -143,12 +298,12 @@ paths:
       summary: Create a project
       tags:
       - projects
-  /api/v1/projects/{id}/migrate:
+  /api/v1/projects/{id}/compare:
     post:
       consumes:
       - application/json
-      description: Initiates a migration from the source database to the target database
-        for the specified project
+      description: initiates schema comparison from the source database to the target
+        database for the specified project
       parameters:
       - description: Project ID
         in: path
@@ -161,8 +316,7 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/schemas.SchemaComparisonResponse'
         "400":
           description: Bad Request
           schema:
@@ -178,7 +332,7 @@ paths:
           schema:
             additionalProperties: true
             type: object
-      summary: Migrate database
+      summary: Compare database
       tags:
       - projects
 swagger: "2.0"

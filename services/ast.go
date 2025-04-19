@@ -76,55 +76,72 @@ type ForeignKeyInfo struct {
 
 // TODO: Deal with constraints
 func DumpSchemaAST(db *gorm.DB) ([]TableSchema, error) {
-	var schemas []TableSchema
-
-	// Get all tables in the database
 	tables, err := db.Migrator().GetTables()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get tables: %v", err)
+		return nil, err
 	}
 
+	// Use channels for parallel execution
+	columnsChan := make(chan map[string][]ColumnInfo)
+	indexesChan := make(chan map[string][]IndexInfo)
+	fksChan := make(chan map[string][]ForeignKeyInfo)
+	errChan := make(chan error, 3)
+
+	// Launch goroutines for each metadata type
+	go func() {
+		cols, err := getAllColumns(db)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		columnsChan <- cols
+	}()
+
+	go func() {
+		idxs, err := getAllIndexes(db)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		indexesChan <- idxs
+	}()
+
+	go func() {
+		fks, err := getAllForeignKeys(db)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		fksChan <- fks
+	}()
+
+	// Collect results
+	var columnsByTable map[string][]ColumnInfo
+	var indexesByTable map[string][]IndexInfo
+	var fksByTable map[string][]ForeignKeyInfo
+
+	for i := 0; i < 3; i++ {
+		select {
+		case err := <-errChan:
+			return nil, err
+		case cols := <-columnsChan:
+			columnsByTable = cols
+		case idxs := <-indexesChan:
+			indexesByTable = idxs
+		case fks := <-fksChan:
+			fksByTable = fks
+		}
+	}
+
+	// Build schemas
+	schemas := make([]TableSchema, 0, len(tables))
 	for _, table := range tables {
-		var schema TableSchema
-		schema.Name = table
-
-		columns, err := db.Migrator().ColumnTypes(table)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get columns for table %s: %v", table, err)
-		}
-
-		for _, column := range columns {
-			isNull, _ := column.Nullable()
-			isPrimary, _ := column.PrimaryKey()
-			schema.Columns = append(schema.Columns, ColumnInfo{
-				Name:       column.Name(),
-				DataType:   column.DatabaseTypeName(),
-				IsNullable: isNull,
-				IsPrimary:  isPrimary,
-			})
-		}
-
-		// Get indexes for the table
-		indexes, err := db.Migrator().GetIndexes(table)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get indexes for table %s: %v", table, err)
-		}
-
-		for _, index := range indexes {
-			isUnique, _ := index.Unique()
-			schema.Indexes = append(schema.Indexes, IndexInfo{
-				Name:     index.Name(),
-				Columns:  index.Columns(),
-				IsUnique: isUnique,
-			})
-		}
-
-		fks, err := GetForeignKeys(db, table)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get foreign keys for table %s: %v", table, err)
-		}
-		schema.ForeignKeys = fks
-		schemas = append(schemas, schema)
+		schemas = append(schemas, TableSchema{
+			Name:        table,
+			Columns:     columnsByTable[table],
+			Indexes:     indexesByTable[table],
+			ForeignKeys: fksByTable[table],
+		})
 	}
 
 	return schemas, nil
@@ -375,4 +392,222 @@ func GetForeignKeys(db *gorm.DB, tableName string) ([]ForeignKeyInfo, error) {
 	}
 
 	return result, nil
+}
+
+func getAllColumns(db *gorm.DB) (map[string][]ColumnInfo, error) {
+	var columns []struct {
+		TableName  string
+		ColumnName string
+		DataType   string
+		IsNullable string
+		IsPrimary  bool
+	}
+
+	// PostgreSQL-specific query
+	err := db.Raw(`
+        SELECT 
+            c.table_name,
+            c.column_name,
+            c.data_type,
+            c.is_nullable,
+            EXISTS (
+                SELECT 1 FROM information_schema.key_column_usage k
+                WHERE k.table_name = c.table_name 
+                AND k.column_name = c.column_name
+                AND k.constraint_name IN (
+                    SELECT constraint_name 
+                    FROM information_schema.table_constraints 
+                    WHERE constraint_type = 'PRIMARY KEY'
+                )
+            ) AS is_primary
+        FROM information_schema.columns c
+        WHERE c.table_schema = current_schema()
+        ORDER BY c.table_name, c.ordinal_position
+    `).Scan(&columns).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all columns: %v", err)
+	}
+
+	result := make(map[string][]ColumnInfo)
+	for _, c := range columns {
+		result[c.TableName] = append(result[c.TableName], ColumnInfo{
+			Name:       c.ColumnName,
+			DataType:   c.DataType,
+			IsNullable: c.IsNullable == "YES",
+			IsPrimary:  c.IsPrimary,
+		})
+	}
+	return result, nil
+}
+
+func getAllIndexes(db *gorm.DB) (map[string][]IndexInfo, error) {
+	var indexes []struct {
+		TableName  string
+		IndexName  string
+		ColumnName string
+		IsUnique   bool
+		IsPrimary  bool
+	}
+
+	// PostgreSQL-specific query to get all indexes
+	err := db.Raw(`
+        SELECT
+            t.relname AS table_name,
+            i.relname AS index_name,
+            a.attname AS column_name,
+            idx.indisunique AS is_unique,
+            idx.indisprimary AS is_primary
+        FROM
+            pg_class t,
+            pg_class i,
+            pg_index idx,
+            pg_attribute a
+        WHERE
+            t.oid = idx.indrelid
+            AND i.oid = idx.indexrelid
+            AND a.attrelid = t.oid
+            AND a.attnum = ANY(idx.indkey)
+            AND t.relkind = 'r'
+            AND t.relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = current_schema())
+        ORDER BY
+            t.relname,
+            i.relname,
+            array_position(idx.indkey, a.attnum)
+    `).Scan(&indexes).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all indexes: %v", err)
+	}
+
+	result := make(map[string][]IndexInfo)
+	indexMap := make(map[string]map[string]*IndexInfo) // table -> index name -> index info
+
+	// First pass to organize by table and index
+	for _, idx := range indexes {
+		if _, exists := indexMap[idx.TableName]; !exists {
+			indexMap[idx.TableName] = make(map[string]*IndexInfo)
+		}
+
+		if _, exists := indexMap[idx.TableName][idx.IndexName]; !exists {
+			indexMap[idx.TableName][idx.IndexName] = &IndexInfo{
+				Name:      idx.IndexName,
+				IsUnique:  idx.IsUnique,
+				IsPrimary: idx.IsPrimary,
+			}
+		}
+
+		indexMap[idx.TableName][idx.IndexName].Columns = append(
+			indexMap[idx.TableName][idx.IndexName].Columns,
+			idx.ColumnName,
+		)
+	}
+
+	// Second pass to convert to final structure
+	for tableName, indexes := range indexMap {
+		for _, index := range indexes {
+			result[tableName] = append(result[tableName], *index)
+		}
+	}
+
+	return result, nil
+}
+
+func getAllForeignKeys(db *gorm.DB) (map[string][]ForeignKeyInfo, error) {
+	var fks []struct {
+		TableName      string `gorm:"column:table_name"`
+		ConstraintName string `gorm:"column:constraint_name"`
+		ColumnName     string `gorm:"column:column_name"`
+		ForeignTable   string `gorm:"column:foreign_table_name"`
+		ForeignColumn  string `gorm:"column:foreign_column_name"`
+		OnDelete       string `gorm:"column:on_delete"`
+		OnUpdate       string `gorm:"column:on_update"`
+	}
+
+	// More robust PostgreSQL query
+	err := db.Raw(`
+        SELECT
+            tc.table_name,
+            tc.constraint_name,
+            kcu.column_name,
+            ccu.table_name AS foreign_table_name,
+            ccu.column_name AS foreign_column_name,
+            rc.delete_rule AS on_delete,
+            rc.update_rule AS on_update
+        FROM
+            information_schema.table_constraints tc
+            JOIN information_schema.key_column_usage kcu
+                ON tc.constraint_name = kcu.constraint_name
+                AND tc.table_schema = kcu.table_schema
+                AND tc.table_name = kcu.table_name
+            JOIN information_schema.constraint_column_usage ccu
+                ON ccu.constraint_name = tc.constraint_name
+                AND ccu.table_schema = tc.table_schema
+            JOIN information_schema.referential_constraints rc
+                ON rc.constraint_name = tc.constraint_name
+                AND rc.constraint_schema = tc.table_schema
+        WHERE
+            tc.constraint_type = 'FOREIGN KEY'
+            AND tc.table_schema = current_schema()
+        ORDER BY
+            tc.table_name,
+            tc.constraint_name,
+            kcu.ordinal_position
+    `).Scan(&fks).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all foreign keys: %v", err)
+	}
+
+	result := make(map[string][]ForeignKeyInfo)
+	fkMap := make(map[string]map[string]*ForeignKeyInfo)
+
+	for _, fk := range fks {
+		// Initialize if not exists
+		if _, exists := fkMap[fk.TableName]; !exists {
+			fkMap[fk.TableName] = make(map[string]*ForeignKeyInfo)
+		}
+
+		if _, exists := fkMap[fk.TableName][fk.ConstraintName]; !exists {
+			fkMap[fk.TableName][fk.ConstraintName] = &ForeignKeyInfo{
+				Name:            fk.ConstraintName,
+				ReferencedTable: fk.ForeignTable,
+				OnDelete:        fk.OnDelete,
+				OnUpdate:        fk.OnUpdate,
+			}
+		}
+
+		// Ensure we don't duplicate columns
+		if !contains(fkMap[fk.TableName][fk.ConstraintName].Columns, fk.ColumnName) {
+			fkMap[fk.TableName][fk.ConstraintName].Columns = append(
+				fkMap[fk.TableName][fk.ConstraintName].Columns,
+				fk.ColumnName,
+			)
+		}
+
+		if !contains(fkMap[fk.TableName][fk.ConstraintName].ReferencedColumns, fk.ForeignColumn) {
+			fkMap[fk.TableName][fk.ConstraintName].ReferencedColumns = append(
+				fkMap[fk.TableName][fk.ConstraintName].ReferencedColumns,
+				fk.ForeignColumn,
+			)
+		}
+	}
+
+	// Convert to final structure
+	for tableName, constraints := range fkMap {
+		for _, constraint := range constraints {
+			result[tableName] = append(result[tableName], *constraint)
+		}
+	}
+
+	return result, nil
+}
+
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
 }

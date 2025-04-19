@@ -2,6 +2,8 @@ package schemas
 
 import (
 	"time"
+
+	"github.com/Tsarbomba69-com/mammoth.server/services"
 )
 
 type DBConnectionRequest struct {
@@ -37,4 +39,9 @@ type ProjectResponse struct {
 	Description string               `json:"description"`
 	Source      DBConnectionResponse `json:"source"`
 	Target      DBConnectionResponse `json:"target"`
+}
+
+type SchemaComparisonResponse struct {
+	Differences     services.SchemaDiff      `json:"differences"`
+	MigrationScript services.MigrationScript `json:"migration_script"`
 }

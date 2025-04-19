@@ -10,6 +10,6 @@ func RegisterProjectRoutes(http *gin.Engine) {
 	{
 		r.POST("/", controllers.CreateProject)
 		r.GET("/", controllers.GetProjects)
-		r.POST("/:id/migrate", controllers.MigrateProject)
+		r.POST("/:id/compare", controllers.Compare)
 	}
 }
