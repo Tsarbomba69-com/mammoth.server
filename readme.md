@@ -17,7 +17,7 @@
 ## 📦 Instalação
 
 ```bash
-git clone https://github.com/seu-usuario/mammoth-server.git
+git clone https://github.com/Tsarbomba69-com/mammoth.server.git
 cd mammoth.server
 go build -o mammoth
 ```
