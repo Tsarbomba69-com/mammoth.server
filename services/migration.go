@@ -18,6 +18,9 @@ func Generate(diff SchemaDiff) MigrationScript {
 	// Create tables first (without foreign keys)
 	for _, table := range diff.TablesAdded {
 		upSQL.WriteString(createTableSQL(table))
+	}
+
+	for _, table := range diff.TablesAdded {
 		for _, fk := range table.ForeignKeyInfoAdded {
 			upSQL.WriteString(addForeignKeySQL(table.Name, fk))
 			downSQL.WriteString(dropForeignKeySQL(table.Name, fk.Name))
@@ -34,6 +37,9 @@ func Generate(diff SchemaDiff) MigrationScript {
 	// Reverse: re-create removed tables (with FKs)
 	for _, table := range diff.TablesRemoved {
 		downSQL.WriteString(createTableSQL(table))
+	}
+
+	for _, table := range diff.TablesRemoved {
 		for _, fk := range table.ForeignKeyInfoAdded {
 			downSQL.WriteString(addForeignKeySQL(table.Name, fk))
 			upSQL.WriteString(dropForeignKeySQL(table.Name, fk.Name))

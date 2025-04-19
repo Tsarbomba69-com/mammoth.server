@@ -48,9 +48,7 @@ type TableDiff struct {
 	IndexesModified        []IndexChange    `json:"indexes_modified"`
 	IndexesSame            []IndexInfo      `json:"indexes_same"`
 	ForeignKeyInfoAdded    []ForeignKeyInfo `json:"foreign_key_info_added"`
-	ForeignKeyInfoRemoved  []ForeignKeyInfo `json:"foreign_key_info_removed"`
 	ForeignKeyInfoModified []ForeignKeyInfo `json:"foreign_key_info_modified"`
-	ForeignKeyInfoSame     []ForeignKeyInfo `json:"foreign_key_info_same"`
 }
 
 type ColumnChange struct {
