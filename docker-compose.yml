@@ -1,6 +1,17 @@
-version: '3.3'
-
 services:
+  server:
+    image: mammoth/mammoth.server:latest
+    ports:
+      - "8080:8080"
+    environment:
+      DB_HOST: ${DB_HOST}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      DB_PORT: ${DB_PORT}
+    restart: always
+    depends_on:
+      - db
   db:
     image: postgres:15
     environment:
@@ -10,10 +21,9 @@ services:
     ports:
       - "5400:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - mammoth_data:/var/lib/postgresql/data
     restart: always
-  
+
 volumes:
-  minio-data:
-  pgdata:
+  mammoth_data:
     driver: local

@@ -1,28 +1,36 @@
-#### Install package
+# Commonly used commands
+
+## Install package
 
 ```bash
  go get -u $package_name
 ```
 
-#### Docker compose
+## Docker compose
 
 ```bash
-docker compose down && docker compose --env-file $env_file up -d --build
+docker compose down && docker compose -f $docker_compose_file --env-file $env_file up -d --build
 ```
 
-#### Generate a Swagger Doc Directory
+## Docker build image
+
+```bash
+docker build -t "$IMAGE_NAME" .
+```
+
+## Generate a Swagger Doc Directory
 
 ```bash
 swag init
 ```
 
-#### Swagger address
+## Swagger address
 
 ```http
 http://localhost:8080/swagger/index.html
 ```
 
-#### Run tests
+## Run tests
 
 ```bash
 go test $test_dir -v
