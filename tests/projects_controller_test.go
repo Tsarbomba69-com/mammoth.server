@@ -7,54 +7,37 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/Tsarbomba69-com/mammoth.server/controllers"
+	"github.com/Tsarbomba69-com/mammoth.server/models"
 	"github.com/Tsarbomba69-com/mammoth.server/repositories"
 	"github.com/Tsarbomba69-com/mammoth.server/schemas"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
-
-func setupTestDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
-	db, mock, err := sqlmock.New()
-	require.NoError(t, err)
-	dialector := postgres.New(postgres.Config{
-		Conn:                 db,
-		PreferSimpleProtocol: true,
-	})
-	gormDB, err := gorm.Open(dialector, &gorm.Config{})
-	require.NoError(t, err)
-	return gormDB, mock
-}
 
 func TestCreateProject(t *testing.T) {
 	// Setup
 	gin.SetMode(gin.TestMode)
 	originalDB := repositories.Context
 	defer func() { repositories.Context = originalDB }()
-	err := godotenv.Load("../.env")
+	err := godotenv.Load("../.env.example")
 	if err != nil {
 		t.Fatal("Error loading .env file")
 	}
 
 	t.Run("Success - Project created successfully", func(t *testing.T) {
 		// Arrange
-		gormDB, mock := setupTestDB(t)
+		gormDB := SetupDB(t, "mammoth", func(db *gorm.DB) {
+			// Setup your schema here if needed
+			db.AutoMigrate(&models.Project{})
+			repositories.Context = db
+		})
 		originalDB := repositories.Context
 		repositories.Context = gormDB
 		defer func() { repositories.Context = originalDB }()
-		mock.ExpectBegin()
-		mock.ExpectQuery(`INSERT INTO "db_connections"`).
-			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
-		mock.ExpectQuery(`INSERT INTO "db_connections"`).
-			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(2))
-		mock.ExpectQuery(`INSERT INTO "projects"`).
-			WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(3))
-		mock.ExpectCommit()
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 
@@ -92,8 +75,6 @@ func TestCreateProject(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, requestBody.Name, response.Name)
 		assert.Equal(t, requestBody.Description, response.Description)
-		err = mock.ExpectationsWereMet()
-		assert.NoError(t, err)
 	})
 
 	t.Run("Error - Invalid JSON input", func(t *testing.T) {

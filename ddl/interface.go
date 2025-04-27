@@ -1,18 +1,20 @@
 package ddl
 
 import (
-	"github.com/Tsarbomba69-com/mammoth.server/types"
+	"github.com/Tsarbomba69-com/mammoth.server/models"
+	"gorm.io/gorm"
 )
 
 type DDL interface {
-	CreateTableSQL(tableDiff types.TableDiff) string
-	AlterTableSQL(tableDiff types.TableDiff) string
-	RevertAlterTableSQL(tableDiff types.TableDiff) string
-	CreateIndexSQL(tableName string, idx types.IndexInfo) string
-	DropIndexSQL(tableName string, idx types.IndexInfo) string
-	AddForeignKeySQL(table string, fk types.ForeignKeyInfo) string
+	CreateTableSQL(tableDiff models.TableDiff) string
+	AlterTableSQL(tableDiff models.TableDiff) string
+	RevertAlterTableSQL(tableDiff models.TableDiff) string
+	CreateIndexSQL(tableName string, idx models.IndexInfo) string
+	DropIndexSQL(tableName string, idx models.IndexInfo) string
+	AddForeignKeySQL(table string, fk models.ForeignKeyInfo) string
 	DropForeignKeySQL(table, constraint string) string
 	DropTableSQL(tableName string) string
+	DumpDatabaseSQL(connection models.DBConnection, db *gorm.DB) (string, error)
 }
 
 func NewDDL(dialect string) DDL {

@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/Tsarbomba69-com/mammoth.server/ddl"
-	"github.com/Tsarbomba69-com/mammoth.server/types"
+	"github.com/Tsarbomba69-com/mammoth.server/models"
 )
 
 // MigrationScript represents a generated migration script
@@ -14,7 +14,7 @@ type MigrationScript struct {
 }
 
 // Generate creates migration scripts from schema differences
-func Generate(dialect string, diff types.SchemaDiff) MigrationScript {
+func Generate(dialect string, diff models.SchemaDiff) MigrationScript {
 	var upSQL, downSQL strings.Builder
 	var gen ddl.DDL = ddl.NewDDL(dialect) // Change to your desired dialect
 	// Create tables first (without foreign keys)

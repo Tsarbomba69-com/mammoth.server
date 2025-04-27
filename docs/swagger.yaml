@@ -1,5 +1,165 @@
 basePath: /
 definitions:
+  models.ColumnChange:
+    properties:
+      changed_attributes:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      source:
+        $ref: '#/definitions/models.ColumnInfo'
+      target:
+        $ref: '#/definitions/models.ColumnInfo'
+    type: object
+  models.ColumnInfo:
+    properties:
+      data_type:
+        type: string
+      default:
+        type: string
+      is_nullable:
+        type: boolean
+      is_primary:
+        type: boolean
+      name:
+        type: string
+    type: object
+  models.ForeignKeyChange:
+    properties:
+      changed_attributes:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      source:
+        $ref: '#/definitions/models.ForeignKeyInfo'
+      target:
+        $ref: '#/definitions/models.ForeignKeyInfo'
+    type: object
+  models.ForeignKeyInfo:
+    properties:
+      columns:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      onDelete:
+        type: string
+      onUpdate:
+        type: string
+      referencedColumns:
+        items:
+          type: string
+        type: array
+      referencedTable:
+        type: string
+    type: object
+  models.IndexChange:
+    properties:
+      changed_attributes:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      source:
+        $ref: '#/definitions/models.IndexInfo'
+      target:
+        $ref: '#/definitions/models.IndexInfo'
+    type: object
+  models.IndexInfo:
+    properties:
+      columns:
+        items:
+          type: string
+        type: array
+      is_primary:
+        type: boolean
+      is_unique:
+        type: boolean
+      name:
+        type: string
+    type: object
+  models.SchemaDiff:
+    properties:
+      summary:
+        additionalProperties:
+          type: integer
+        type: object
+      tables_added:
+        items:
+          $ref: '#/definitions/models.TableDiff'
+        type: array
+      tables_modified:
+        items:
+          $ref: '#/definitions/models.TableDiff'
+        type: array
+      tables_removed:
+        items:
+          $ref: '#/definitions/models.TableDiff'
+        type: array
+      tables_same:
+        items:
+          type: string
+        type: array
+    type: object
+  models.TableDiff:
+    properties:
+      columns_added:
+        items:
+          $ref: '#/definitions/models.ColumnInfo'
+        type: array
+      columns_modified:
+        items:
+          $ref: '#/definitions/models.ColumnChange'
+        type: array
+      columns_removed:
+        items:
+          $ref: '#/definitions/models.ColumnInfo'
+        type: array
+      columns_same:
+        items:
+          $ref: '#/definitions/models.ColumnInfo'
+        type: array
+      foreign_key_info_added:
+        items:
+          $ref: '#/definitions/models.ForeignKeyInfo'
+        type: array
+      foreign_key_info_modified:
+        items:
+          $ref: '#/definitions/models.ForeignKeyChange'
+        type: array
+      foreign_key_info_removed:
+        items:
+          $ref: '#/definitions/models.ForeignKeyInfo'
+        type: array
+      foreign_key_info_same:
+        items:
+          $ref: '#/definitions/models.ForeignKeyInfo'
+        type: array
+      indexes_added:
+        items:
+          $ref: '#/definitions/models.IndexInfo'
+        type: array
+      indexes_modified:
+        items:
+          $ref: '#/definitions/models.IndexChange'
+        type: array
+      indexes_removed:
+        items:
+          $ref: '#/definitions/models.IndexInfo'
+        type: array
+      indexes_same:
+        items:
+          $ref: '#/definitions/models.IndexInfo'
+        type: array
+      table_name:
+        type: string
+    type: object
   schemas.DBConnectionRequest:
     properties:
       dbname:
@@ -84,7 +244,7 @@ definitions:
   schemas.SchemaComparisonResponse:
     properties:
       differences:
-        $ref: '#/definitions/types.SchemaDiff'
+        $ref: '#/definitions/models.SchemaDiff'
       migration_script:
         $ref: '#/definitions/services.MigrationScript'
     type: object
@@ -95,166 +255,6 @@ definitions:
         type: string
       up:
         description: SQL for applying changes
-        type: string
-    type: object
-  types.ColumnChange:
-    properties:
-      changed_attributes:
-        items:
-          type: string
-        type: array
-      name:
-        type: string
-      source:
-        $ref: '#/definitions/types.ColumnInfo'
-      target:
-        $ref: '#/definitions/types.ColumnInfo'
-    type: object
-  types.ColumnInfo:
-    properties:
-      data_type:
-        type: string
-      default:
-        type: string
-      is_nullable:
-        type: boolean
-      is_primary:
-        type: boolean
-      name:
-        type: string
-    type: object
-  types.ForeignKeyChange:
-    properties:
-      changed_attributes:
-        items:
-          type: string
-        type: array
-      name:
-        type: string
-      source:
-        $ref: '#/definitions/types.ForeignKeyInfo'
-      target:
-        $ref: '#/definitions/types.ForeignKeyInfo'
-    type: object
-  types.ForeignKeyInfo:
-    properties:
-      columns:
-        items:
-          type: string
-        type: array
-      name:
-        type: string
-      onDelete:
-        type: string
-      onUpdate:
-        type: string
-      referencedColumns:
-        items:
-          type: string
-        type: array
-      referencedTable:
-        type: string
-    type: object
-  types.IndexChange:
-    properties:
-      changed_attributes:
-        items:
-          type: string
-        type: array
-      name:
-        type: string
-      source:
-        $ref: '#/definitions/types.IndexInfo'
-      target:
-        $ref: '#/definitions/types.IndexInfo'
-    type: object
-  types.IndexInfo:
-    properties:
-      columns:
-        items:
-          type: string
-        type: array
-      is_primary:
-        type: boolean
-      is_unique:
-        type: boolean
-      name:
-        type: string
-    type: object
-  types.SchemaDiff:
-    properties:
-      summary:
-        additionalProperties:
-          type: integer
-        type: object
-      tables_added:
-        items:
-          $ref: '#/definitions/types.TableDiff'
-        type: array
-      tables_modified:
-        items:
-          $ref: '#/definitions/types.TableDiff'
-        type: array
-      tables_removed:
-        items:
-          $ref: '#/definitions/types.TableDiff'
-        type: array
-      tables_same:
-        items:
-          type: string
-        type: array
-    type: object
-  types.TableDiff:
-    properties:
-      columns_added:
-        items:
-          $ref: '#/definitions/types.ColumnInfo'
-        type: array
-      columns_modified:
-        items:
-          $ref: '#/definitions/types.ColumnChange'
-        type: array
-      columns_removed:
-        items:
-          $ref: '#/definitions/types.ColumnInfo'
-        type: array
-      columns_same:
-        items:
-          $ref: '#/definitions/types.ColumnInfo'
-        type: array
-      foreign_key_info_added:
-        items:
-          $ref: '#/definitions/types.ForeignKeyInfo'
-        type: array
-      foreign_key_info_modified:
-        items:
-          $ref: '#/definitions/types.ForeignKeyChange'
-        type: array
-      foreign_key_info_removed:
-        items:
-          $ref: '#/definitions/types.ForeignKeyInfo'
-        type: array
-      foreign_key_info_same:
-        items:
-          $ref: '#/definitions/types.ForeignKeyInfo'
-        type: array
-      indexes_added:
-        items:
-          $ref: '#/definitions/types.IndexInfo'
-        type: array
-      indexes_modified:
-        items:
-          $ref: '#/definitions/types.IndexChange'
-        type: array
-      indexes_removed:
-        items:
-          $ref: '#/definitions/types.IndexInfo'
-        type: array
-      indexes_same:
-        items:
-          $ref: '#/definitions/types.IndexInfo'
-        type: array
-      table_name:
         type: string
     type: object
 host: localhost:8080
@@ -320,7 +320,7 @@ paths:
       tags:
       - projects
   /api/v1/projects/{id}/compare:
-    post:
+    get:
       consumes:
       - application/json
       description: initiates schema comparison from the source database to the target
@@ -354,6 +354,43 @@ paths:
             additionalProperties: true
             type: object
       summary: Compare database
+      tags:
+      - projects
+  /api/v1/projects/{id}/dump:
+    get:
+      consumes:
+      - application/json
+      description: Generates a full SQL dump of the project's target database and
+        sends it as a downloadable file.
+      parameters:
+      - description: Project ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Download the database backup (SQL dump) for a project
       tags:
       - projects
 swagger: "2.0"

@@ -3,8 +3,8 @@ package schemas
 import (
 	"time"
 
+	"github.com/Tsarbomba69-com/mammoth.server/models"
 	"github.com/Tsarbomba69-com/mammoth.server/services"
-	"github.com/Tsarbomba69-com/mammoth.server/types"
 )
 
 type DBConnectionRequest struct {
@@ -43,6 +43,6 @@ type ProjectResponse struct {
 }
 
 type SchemaComparisonResponse struct {
-	Differences     types.SchemaDiff         `json:"differences"`
+	Differences     models.SchemaDiff        `json:"differences"`
 	MigrationScript services.MigrationScript `json:"migration_script"`
 }

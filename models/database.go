@@ -1,4 +1,4 @@
-package types
+package models
 
 type TableSchema struct {
 	Name        string           `json:"name"`

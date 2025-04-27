@@ -93,7 +93,7 @@
             }
         },
         "/api/v1/projects/{id}/compare": {
-            "post": {
+            "get": {
                 "description": "initiates schema comparison from the source database to the target database for the specified project",
                 "consumes": [
                     "application/json"
@@ -144,9 +144,306 @@
                     }
                 }
             }
+        },
+        "/api/v1/projects/{id}/dump": {
+            "get": {
+                "description": "Generates a full SQL dump of the project's target database and sends it as a downloadable file.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "text/plain"
+                ],
+                "tags": [
+                    "projects"
+                ],
+                "summary": "Download the database backup (SQL dump) for a project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Project ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
+        "models.ColumnChange": {
+            "type": "object",
+            "properties": {
+                "changed_attributes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "source": {
+                    "$ref": "#/definitions/models.ColumnInfo"
+                },
+                "target": {
+                    "$ref": "#/definitions/models.ColumnInfo"
+                }
+            }
+        },
+        "models.ColumnInfo": {
+            "type": "object",
+            "properties": {
+                "data_type": {
+                    "type": "string"
+                },
+                "default": {
+                    "type": "string"
+                },
+                "is_nullable": {
+                    "type": "boolean"
+                },
+                "is_primary": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.ForeignKeyChange": {
+            "type": "object",
+            "properties": {
+                "changed_attributes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "source": {
+                    "$ref": "#/definitions/models.ForeignKeyInfo"
+                },
+                "target": {
+                    "$ref": "#/definitions/models.ForeignKeyInfo"
+                }
+            }
+        },
+        "models.ForeignKeyInfo": {
+            "type": "object",
+            "properties": {
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "onDelete": {
+                    "type": "string"
+                },
+                "onUpdate": {
+                    "type": "string"
+                },
+                "referencedColumns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "referencedTable": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.IndexChange": {
+            "type": "object",
+            "properties": {
+                "changed_attributes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "source": {
+                    "$ref": "#/definitions/models.IndexInfo"
+                },
+                "target": {
+                    "$ref": "#/definitions/models.IndexInfo"
+                }
+            }
+        },
+        "models.IndexInfo": {
+            "type": "object",
+            "properties": {
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "is_primary": {
+                    "type": "boolean"
+                },
+                "is_unique": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.SchemaDiff": {
+            "type": "object",
+            "properties": {
+                "summary": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "tables_added": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.TableDiff"
+                    }
+                },
+                "tables_modified": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.TableDiff"
+                    }
+                },
+                "tables_removed": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.TableDiff"
+                    }
+                },
+                "tables_same": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "models.TableDiff": {
+            "type": "object",
+            "properties": {
+                "columns_added": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ColumnInfo"
+                    }
+                },
+                "columns_modified": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ColumnChange"
+                    }
+                },
+                "columns_removed": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ColumnInfo"
+                    }
+                },
+                "columns_same": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ColumnInfo"
+                    }
+                },
+                "foreign_key_info_added": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ForeignKeyInfo"
+                    }
+                },
+                "foreign_key_info_modified": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ForeignKeyChange"
+                    }
+                },
+                "foreign_key_info_removed": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ForeignKeyInfo"
+                    }
+                },
+                "foreign_key_info_same": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.ForeignKeyInfo"
+                    }
+                },
+                "indexes_added": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.IndexInfo"
+                    }
+                },
+                "indexes_modified": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.IndexChange"
+                    }
+                },
+                "indexes_removed": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.IndexInfo"
+                    }
+                },
+                "indexes_same": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.IndexInfo"
+                    }
+                },
+                "table_name": {
+                    "type": "string"
+                }
+            }
+        },
         "schemas.DBConnectionRequest": {
             "type": "object",
             "required": [
@@ -272,7 +569,7 @@
             "type": "object",
             "properties": {
                 "differences": {
-                    "$ref": "#/definitions/types.SchemaDiff"
+                    "$ref": "#/definitions/models.SchemaDiff"
                 },
                 "migration_script": {
                     "$ref": "#/definitions/services.MigrationScript"
@@ -288,250 +585,6 @@
                 },
                 "up": {
                     "description": "SQL for applying changes",
-                    "type": "string"
-                }
-            }
-        },
-        "types.ColumnChange": {
-            "type": "object",
-            "properties": {
-                "changed_attributes": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "name": {
-                    "type": "string"
-                },
-                "source": {
-                    "$ref": "#/definitions/types.ColumnInfo"
-                },
-                "target": {
-                    "$ref": "#/definitions/types.ColumnInfo"
-                }
-            }
-        },
-        "types.ColumnInfo": {
-            "type": "object",
-            "properties": {
-                "data_type": {
-                    "type": "string"
-                },
-                "default": {
-                    "type": "string"
-                },
-                "is_nullable": {
-                    "type": "boolean"
-                },
-                "is_primary": {
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string"
-                }
-            }
-        },
-        "types.ForeignKeyChange": {
-            "type": "object",
-            "properties": {
-                "changed_attributes": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "name": {
-                    "type": "string"
-                },
-                "source": {
-                    "$ref": "#/definitions/types.ForeignKeyInfo"
-                },
-                "target": {
-                    "$ref": "#/definitions/types.ForeignKeyInfo"
-                }
-            }
-        },
-        "types.ForeignKeyInfo": {
-            "type": "object",
-            "properties": {
-                "columns": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "name": {
-                    "type": "string"
-                },
-                "onDelete": {
-                    "type": "string"
-                },
-                "onUpdate": {
-                    "type": "string"
-                },
-                "referencedColumns": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "referencedTable": {
-                    "type": "string"
-                }
-            }
-        },
-        "types.IndexChange": {
-            "type": "object",
-            "properties": {
-                "changed_attributes": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "name": {
-                    "type": "string"
-                },
-                "source": {
-                    "$ref": "#/definitions/types.IndexInfo"
-                },
-                "target": {
-                    "$ref": "#/definitions/types.IndexInfo"
-                }
-            }
-        },
-        "types.IndexInfo": {
-            "type": "object",
-            "properties": {
-                "columns": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "is_primary": {
-                    "type": "boolean"
-                },
-                "is_unique": {
-                    "type": "boolean"
-                },
-                "name": {
-                    "type": "string"
-                }
-            }
-        },
-        "types.SchemaDiff": {
-            "type": "object",
-            "properties": {
-                "summary": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "integer"
-                    }
-                },
-                "tables_added": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/types.TableDiff"
-                    }
-                },
-                "tables_modified": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/types.TableDiff"
-                    }
-                },
-                "tables_removed": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/types.TableDiff"
-                    }
-                },
-                "tables_same": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
-        "types.TableDiff": {
-            "type": "object",
-            "properties": {
-                "columns_added": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/types.ColumnInfo"
-                    }
-                },
-                "columns_modified": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/types.ColumnChange"
-                    }
-                },
-                "columns_removed": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/types.ColumnInfo"
-                    }
-                },
-                "columns_same": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/types.ColumnInfo"
-                    }
-                },
-                "foreign_key_info_added": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/types.ForeignKeyInfo"
-                    }
-                },
-                "foreign_key_info_modified": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/types.ForeignKeyChange"
-                    }
-                },
-                "foreign_key_info_removed": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/types.ForeignKeyInfo"
-                    }
-                },
-                "foreign_key_info_same": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/types.ForeignKeyInfo"
-                    }
-                },
-                "indexes_added": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/types.IndexInfo"
-                    }
-                },
-                "indexes_modified": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/types.IndexChange"
-                    }
-                },
-                "indexes_removed": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/types.IndexInfo"
-                    }
-                },
-                "indexes_same": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/types.IndexInfo"
-                    }
-                },
-                "table_name": {
                     "type": "string"
                 }
             }

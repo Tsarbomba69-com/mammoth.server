@@ -5,11 +5,11 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/Tsarbomba69-com/mammoth.server/types"
+	"github.com/Tsarbomba69-com/mammoth.server/models"
 	"gorm.io/gorm"
 )
 
-var dialectQueries = map[string]types.QuerySet{
+var dialectQueries = map[string]models.QuerySet{
 	"postgres": {
 		Column: `
 			SELECT 
@@ -169,16 +169,16 @@ var dialectQueries = map[string]types.QuerySet{
 	},
 }
 
-func DumpSchemaAST(db *gorm.DB) ([]types.TableSchema, error) {
+func DumpSchemaAST(db *gorm.DB) ([]models.TableSchema, error) {
 	tables, err := db.Migrator().GetTables()
 	if err != nil {
 		return nil, err
 	}
 
 	// Use channels for parallel execution
-	columnsChan := make(chan map[string][]types.ColumnInfo)
-	indexesChan := make(chan map[string][]types.IndexInfo)
-	fksChan := make(chan map[string][]types.ForeignKeyInfo)
+	columnsChan := make(chan map[string][]models.ColumnInfo)
+	indexesChan := make(chan map[string][]models.IndexInfo)
+	fksChan := make(chan map[string][]models.ForeignKeyInfo)
 	errChan := make(chan error, 3)
 
 	// Launch goroutines for each metadata type
@@ -210,9 +210,9 @@ func DumpSchemaAST(db *gorm.DB) ([]types.TableSchema, error) {
 	}()
 
 	// Collect results
-	var columnsByTable map[string][]types.ColumnInfo
-	var indexesByTable map[string][]types.IndexInfo
-	var fksByTable map[string][]types.ForeignKeyInfo
+	var columnsByTable map[string][]models.ColumnInfo
+	var indexesByTable map[string][]models.IndexInfo
+	var fksByTable map[string][]models.ForeignKeyInfo
 
 	for i := 0; i < 3; i++ {
 		select {
@@ -228,9 +228,9 @@ func DumpSchemaAST(db *gorm.DB) ([]types.TableSchema, error) {
 	}
 
 	// Build schemas
-	schemas := make([]types.TableSchema, 0, len(tables))
+	schemas := make([]models.TableSchema, 0, len(tables))
 	for _, table := range tables {
-		schemas = append(schemas, types.TableSchema{
+		schemas = append(schemas, models.TableSchema{
 			Name:        table,
 			Columns:     columnsByTable[table],
 			Indexes:     indexesByTable[table],
@@ -241,13 +241,13 @@ func DumpSchemaAST(db *gorm.DB) ([]types.TableSchema, error) {
 	return schemas, nil
 }
 
-func CompareSchemas(source, target []types.TableSchema) types.SchemaDiff {
-	var diff types.SchemaDiff
+func CompareSchemas(source, target []models.TableSchema) models.SchemaDiff {
+	var diff models.SchemaDiff
 	diff.Summary = make(map[string]int)
 
 	// Create maps for quick lookup
-	sourceTables := make(map[string]types.TableSchema)
-	targetTables := make(map[string]types.TableSchema)
+	sourceTables := make(map[string]models.TableSchema)
+	targetTables := make(map[string]models.TableSchema)
 
 	for _, table := range source {
 		sourceTables[table.Name] = table
@@ -260,7 +260,7 @@ func CompareSchemas(source, target []types.TableSchema) types.SchemaDiff {
 	// Find added and removed tables
 	for name, targetTable := range targetTables {
 		if _, exists := sourceTables[name]; !exists {
-			diff.TablesAdded = append(diff.TablesAdded, types.TableDiff{
+			diff.TablesAdded = append(diff.TablesAdded, models.TableDiff{
 				Name:                name,
 				ColumnsAdded:        targetTable.Columns,
 				IndexesAdded:        targetTable.Indexes,
@@ -271,7 +271,7 @@ func CompareSchemas(source, target []types.TableSchema) types.SchemaDiff {
 
 	for name, sourceTable := range sourceTables {
 		if _, exists := targetTables[name]; !exists {
-			diff.TablesRemoved = append(diff.TablesRemoved, types.TableDiff{
+			diff.TablesRemoved = append(diff.TablesRemoved, models.TableDiff{
 				Name:                name,
 				ColumnsAdded:        sourceTable.Columns,
 				IndexesAdded:        sourceTable.Indexes,
@@ -303,13 +303,13 @@ func CompareSchemas(source, target []types.TableSchema) types.SchemaDiff {
 	return diff
 }
 
-func compareTables(source, target types.TableSchema) types.TableDiff {
-	var diff types.TableDiff
+func compareTables(source, target models.TableSchema) models.TableDiff {
+	var diff models.TableDiff
 	diff.Name = source.Name
 
 	// Compare columns
-	sourceColumns := make(map[string]types.ColumnInfo)
-	targetColumns := make(map[string]types.ColumnInfo)
+	sourceColumns := make(map[string]models.ColumnInfo)
+	targetColumns := make(map[string]models.ColumnInfo)
 
 	for _, col := range source.Columns {
 		sourceColumns[col.Name] = col
@@ -350,7 +350,7 @@ func compareTables(source, target types.TableSchema) types.TableDiff {
 					changed = append(changed, "default")
 				}
 
-				diff.ColumnsModified = append(diff.ColumnsModified, types.ColumnChange{
+				diff.ColumnsModified = append(diff.ColumnsModified, models.ColumnChange{
 					Name:        name,
 					Source:      sourceCol,
 					Target:      targetCol,
@@ -363,8 +363,8 @@ func compareTables(source, target types.TableSchema) types.TableDiff {
 	}
 
 	// Compare indexes
-	sourceIndexes := make(map[string]types.IndexInfo)
-	targetIndexes := make(map[string]types.IndexInfo)
+	sourceIndexes := make(map[string]models.IndexInfo)
+	targetIndexes := make(map[string]models.IndexInfo)
 
 	for _, idx := range source.Indexes {
 		sourceIndexes[idx.Name] = idx
@@ -402,7 +402,7 @@ func compareTables(source, target types.TableSchema) types.TableDiff {
 					changed = append(changed, "is_primary")
 				}
 
-				diff.IndexesModified = append(diff.IndexesModified, types.IndexChange{
+				diff.IndexesModified = append(diff.IndexesModified, models.IndexChange{
 					Name:        name,
 					Source:      sourceIdx,
 					Target:      targetIdx,
@@ -415,8 +415,8 @@ func compareTables(source, target types.TableSchema) types.TableDiff {
 	}
 
 	// Compare ForeignKeys
-	sourceForeignKeys := make(map[string]types.ForeignKeyInfo)
-	targetForeignKeys := make(map[string]types.ForeignKeyInfo)
+	sourceForeignKeys := make(map[string]models.ForeignKeyInfo)
+	targetForeignKeys := make(map[string]models.ForeignKeyInfo)
 
 	for _, idx := range source.ForeignKeys {
 		sourceForeignKeys[idx.Name] = idx
@@ -460,7 +460,7 @@ func compareTables(source, target types.TableSchema) types.TableDiff {
 					changed = append(changed, "referenced_table")
 				}
 
-				diff.ForeignKeyInfoModified = append(diff.ForeignKeyInfoModified, types.ForeignKeyChange{
+				diff.ForeignKeyInfoModified = append(diff.ForeignKeyInfoModified, models.ForeignKeyChange{
 					Name:        name,
 					Source:      sourceFk,
 					Target:      targetFk,
@@ -487,7 +487,7 @@ func stringSlicesEqual(a, b []string) bool {
 	return true
 }
 
-func GetForeignKeys(db *gorm.DB, tableName string) ([]types.ForeignKeyInfo, error) {
+func GetForeignKeys(db *gorm.DB, tableName string) ([]models.ForeignKeyInfo, error) {
 	qs, err := getQuerySet(db)
 	if err != nil {
 		return nil, err
@@ -499,7 +499,7 @@ func GetForeignKeys(db *gorm.DB, tableName string) ([]types.ForeignKeyInfo, erro
 	}
 	defer rows.Close()
 
-	constraintMap := map[string]*types.ForeignKeyInfo{}
+	constraintMap := map[string]*models.ForeignKeyInfo{}
 
 	for rows.Next() {
 		var name, column, refTable, refColumn, onUpdate, onDelete string
@@ -508,7 +508,7 @@ func GetForeignKeys(db *gorm.DB, tableName string) ([]types.ForeignKeyInfo, erro
 		}
 
 		if _, exists := constraintMap[name]; !exists {
-			constraintMap[name] = &types.ForeignKeyInfo{
+			constraintMap[name] = &models.ForeignKeyInfo{
 				Name:            name,
 				ReferencedTable: refTable,
 				OnUpdate:        onUpdate,
@@ -520,7 +520,7 @@ func GetForeignKeys(db *gorm.DB, tableName string) ([]types.ForeignKeyInfo, erro
 		info.ReferencedColumns = append(info.ReferencedColumns, refColumn)
 	}
 
-	var result []types.ForeignKeyInfo
+	var result []models.ForeignKeyInfo
 	for _, fk := range constraintMap {
 		result = append(result, *fk)
 	}
@@ -528,7 +528,7 @@ func GetForeignKeys(db *gorm.DB, tableName string) ([]types.ForeignKeyInfo, erro
 	return result, nil
 }
 
-func getAllColumns(db *gorm.DB) (map[string][]types.ColumnInfo, error) {
+func getAllColumns(db *gorm.DB) (map[string][]models.ColumnInfo, error) {
 	qs, err := getQuerySet(db)
 	if err != nil {
 		return nil, err
@@ -547,14 +547,14 @@ func getAllColumns(db *gorm.DB) (map[string][]types.ColumnInfo, error) {
 		return nil, fmt.Errorf("failed to get all columns: %v", err)
 	}
 
-	result := make(map[string][]types.ColumnInfo)
+	result := make(map[string][]models.ColumnInfo)
 	for _, c := range columns {
 		defaultValue := ""
 		if c.Default != nil {
 			defaultValue = *c.Default
 		}
 
-		result[c.TableName] = append(result[c.TableName], types.ColumnInfo{
+		result[c.TableName] = append(result[c.TableName], models.ColumnInfo{
 			Name:       c.ColumnName,
 			DataType:   c.DataType,
 			IsNullable: c.IsNullable == "YES",
@@ -565,7 +565,7 @@ func getAllColumns(db *gorm.DB) (map[string][]types.ColumnInfo, error) {
 	return result, nil
 }
 
-func getQuerySet(db *gorm.DB) (types.QuerySet, error) {
+func getQuerySet(db *gorm.DB) (models.QuerySet, error) {
 	dialect := db.Dialector.Name()
 
 	// Normalize dialect names
@@ -580,13 +580,13 @@ func getQuerySet(db *gorm.DB) (types.QuerySet, error) {
 
 	qs, ok := dialectQueries[dialect]
 	if !ok {
-		return types.QuerySet{}, fmt.Errorf("unsupported database dialect: %s", dialect)
+		return models.QuerySet{}, fmt.Errorf("unsupported database dialect: %s", dialect)
 	}
 
 	return qs, nil
 }
 
-func getAllIndexes(db *gorm.DB) (map[string][]types.IndexInfo, error) {
+func getAllIndexes(db *gorm.DB) (map[string][]models.IndexInfo, error) {
 	qs, err := getQuerySet(db)
 	if err != nil {
 		return nil, err
@@ -604,16 +604,16 @@ func getAllIndexes(db *gorm.DB) (map[string][]types.IndexInfo, error) {
 		return nil, fmt.Errorf("failed to get all indexes: %v", err)
 	}
 
-	result := make(map[string][]types.IndexInfo)
-	indexMap := make(map[string]map[string]*types.IndexInfo)
+	result := make(map[string][]models.IndexInfo)
+	indexMap := make(map[string]map[string]*models.IndexInfo)
 
 	for _, idx := range indexes {
 		if _, exists := indexMap[idx.TableName]; !exists {
-			indexMap[idx.TableName] = make(map[string]*types.IndexInfo)
+			indexMap[idx.TableName] = make(map[string]*models.IndexInfo)
 		}
 
 		if _, exists := indexMap[idx.TableName][idx.IndexName]; !exists {
-			indexMap[idx.TableName][idx.IndexName] = &types.IndexInfo{
+			indexMap[idx.TableName][idx.IndexName] = &models.IndexInfo{
 				Name:      idx.IndexName,
 				IsUnique:  idx.IsUnique,
 				IsPrimary: idx.IsPrimary,
@@ -635,7 +635,7 @@ func getAllIndexes(db *gorm.DB) (map[string][]types.IndexInfo, error) {
 	return result, nil
 }
 
-func getAllForeignKeys(db *gorm.DB) (map[string][]types.ForeignKeyInfo, error) {
+func getAllForeignKeys(db *gorm.DB) (map[string][]models.ForeignKeyInfo, error) {
 	qs, err := getQuerySet(db)
 	if err != nil {
 		return nil, err
@@ -655,16 +655,16 @@ func getAllForeignKeys(db *gorm.DB) (map[string][]types.ForeignKeyInfo, error) {
 		return nil, fmt.Errorf("failed to get all foreign keys: %v", err)
 	}
 
-	result := make(map[string][]types.ForeignKeyInfo)
-	fkMap := make(map[string]map[string]*types.ForeignKeyInfo)
+	result := make(map[string][]models.ForeignKeyInfo)
+	fkMap := make(map[string]map[string]*models.ForeignKeyInfo)
 
 	for _, fk := range fks {
 		if _, exists := fkMap[fk.TableName]; !exists {
-			fkMap[fk.TableName] = make(map[string]*types.ForeignKeyInfo)
+			fkMap[fk.TableName] = make(map[string]*models.ForeignKeyInfo)
 		}
 
 		if _, exists := fkMap[fk.TableName][fk.ConstraintName]; !exists {
-			fkMap[fk.TableName][fk.ConstraintName] = &types.ForeignKeyInfo{
+			fkMap[fk.TableName][fk.ConstraintName] = &models.ForeignKeyInfo{
 				Name:            fk.ConstraintName,
 				ReferencedTable: fk.ForeignTable,
 				OnDelete:        fk.OnDelete,

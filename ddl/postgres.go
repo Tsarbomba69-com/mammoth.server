@@ -1,16 +1,22 @@
 package ddl
 
 import (
+	"bytes"
 	"fmt"
+	"os"
+	"os/exec"
+	"runtime"
 	"strings"
 
-	"github.com/Tsarbomba69-com/mammoth.server/types"
+	"github.com/Tsarbomba69-com/mammoth.server/models"
+	"github.com/Tsarbomba69-com/mammoth.server/utils"
+	"gorm.io/gorm"
 )
 
 // postgresql_ddl.go
 type PostgreSQLDDL struct{} // Empty struct since we don't need state
 
-func (p PostgreSQLDDL) CreateTableSQL(tableDiff types.TableDiff) string {
+func (p PostgreSQLDDL) CreateTableSQL(tableDiff models.TableDiff) string {
 	var sql strings.Builder
 	sql.WriteString(fmt.Sprintf("CREATE TABLE %s (\n", quoteIdentifier(tableDiff.Name)))
 
@@ -51,7 +57,7 @@ func (p PostgreSQLDDL) CreateTableSQL(tableDiff types.TableDiff) string {
 	return sql.String()
 }
 
-func (p PostgreSQLDDL) AlterTableSQL(tableDiff types.TableDiff) string {
+func (p PostgreSQLDDL) AlterTableSQL(tableDiff models.TableDiff) string {
 	var sql strings.Builder
 	tableName := quoteIdentifier(tableDiff.Name)
 
@@ -115,7 +121,7 @@ func (p PostgreSQLDDL) AlterTableSQL(tableDiff types.TableDiff) string {
 	return sql.String()
 }
 
-func (p PostgreSQLDDL) RevertAlterTableSQL(tableDiff types.TableDiff) string {
+func (p PostgreSQLDDL) RevertAlterTableSQL(tableDiff models.TableDiff) string {
 	var sql strings.Builder
 	tableName := quoteIdentifier(tableDiff.Name)
 
@@ -170,7 +176,7 @@ func (p PostgreSQLDDL) RevertAlterTableSQL(tableDiff types.TableDiff) string {
 	return sql.String()
 }
 
-func (p PostgreSQLDDL) CreateIndexSQL(tableName string, idx types.IndexInfo) string {
+func (p PostgreSQLDDL) CreateIndexSQL(tableName string, idx models.IndexInfo) string {
 	if idx.IsPrimary {
 		return "" // Already handled in CREATE TABLE
 	}
@@ -192,7 +198,7 @@ func (p PostgreSQLDDL) CreateIndexSQL(tableName string, idx types.IndexInfo) str
 		strings.Join(quotedColumns, ", "))
 }
 
-func (p PostgreSQLDDL) DropIndexSQL(tableName string, idx types.IndexInfo) string {
+func (p PostgreSQLDDL) DropIndexSQL(tableName string, idx models.IndexInfo) string {
 	if idx.IsPrimary {
 		return fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT %s;\n",
 			quoteIdentifier(tableName),
@@ -217,7 +223,7 @@ func joinIdentifiers(cols []string) string {
 	return strings.Join(parts, ", ")
 }
 
-func (p PostgreSQLDDL) AddForeignKeySQL(table string, fk types.ForeignKeyInfo) string {
+func (p PostgreSQLDDL) AddForeignKeySQL(table string, fk models.ForeignKeyInfo) string {
 	cols := joinIdentifiers(fk.Columns)
 	refCols := joinIdentifiers(fk.ReferencedColumns)
 
@@ -227,4 +233,54 @@ func (p PostgreSQLDDL) AddForeignKeySQL(table string, fk types.ForeignKeyInfo) s
 
 func (p PostgreSQLDDL) DropForeignKeySQL(table, constraint string) string {
 	return fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT %s;\n", quoteIdentifier(table), quoteIdentifier(constraint))
+}
+
+func (p PostgreSQLDDL) DumpDatabaseSQL(connection models.DBConnection, db *gorm.DB) (string, error) {
+	var out bytes.Buffer
+	var stderr bytes.Buffer
+	pass, err := utils.Decrypt([]byte([]byte(os.Getenv("ENCRYPTION_KEY"))), connection.Password)
+	if err != nil {
+		return "", fmt.Errorf("failed to decrypt password: %v", err)
+	}
+
+	pgDumpPath, err := getPgDumpPath()
+	if err != nil {
+		return "", fmt.Errorf("failed to get pg_dump path: %v", err)
+	}
+
+	os.Setenv("PGPASSWORD", pass) // Set the password for pg_dump
+	cmd := exec.Command(pgDumpPath,
+		"-h", connection.Host,
+		"-U", connection.User,
+		"-d", connection.DBName,
+		"-F", "plain", // plain SQL format
+	)
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("pg_dump failed: %v - %s", err, stderr.String())
+	}
+
+	return out.String(), nil
+}
+
+func getPgDumpPath() (string, error) {
+	// Check the OS using runtime.GOOS
+	switch runtime.GOOS {
+	case "windows":
+		// Windows-specific path to pg_dump
+		// Assuming pg_dump is installed with PostgreSQL (e.g., C:\Program Files\PostgreSQL\12\bin)
+		// You can update this to your actual installation path
+		return "C:\\Program Files\\PostgreSQL\\17\\bin\\pg_dump.exe", nil
+	case "darwin":
+		// MacOS - installed via Homebrew (default location)
+		return "/usr/local/bin/pg_dump", nil
+	case "linux":
+		// Linux - typically available via package manager
+		// Just check if it's in the system path
+		return "pg_dump", nil
+	default:
+		return "", fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
+	}
 }

@@ -4,12 +4,12 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/Tsarbomba69-com/mammoth.server/ddl"
 	"github.com/Tsarbomba69-com/mammoth.server/mappers"
 	"github.com/Tsarbomba69-com/mammoth.server/models"
 	"github.com/Tsarbomba69-com/mammoth.server/repositories"
 	"github.com/Tsarbomba69-com/mammoth.server/schemas"
 	"github.com/Tsarbomba69-com/mammoth.server/services"
-	"github.com/Tsarbomba69-com/mammoth.server/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -87,12 +87,12 @@ func GetProjects(c *gin.Context) {
 // @Failure 400  {object}  map[string]any
 // @Failure 404  {object}  map[string]any
 // @Failure 500  {object}  map[string]any
-// @Router  /api/v1/projects/{id}/compare [post]
+// @Router  /api/v1/projects/{id}/compare [get]
 func Compare(c *gin.Context) {
 	projectID := c.Param("id")
 	var project models.Project
-	var sourceSchema []types.TableSchema
-	var targetSchema []types.TableSchema
+	var sourceSchema []models.TableSchema
+	var targetSchema []models.TableSchema
 
 	if err := repositories.Context.Preload("Source").Preload("Target").First(&project, projectID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Project not found"})
@@ -123,4 +123,42 @@ func Compare(c *gin.Context) {
 		Differences:     diff,
 		MigrationScript: script,
 	})
+}
+
+// Dump generates and downloads the database backup for a specific project.
+// @Summary Download the database backup (SQL dump) for a project
+// @Description Generates a full SQL dump of the project's target database and sends it as a downloadable file.
+// @Tags projects
+// @Accept  json
+// @Produce  plain
+// @Param   id   path      string  true  "Project ID"
+// @Success 200  {file}  file
+// @Failure 400  {object}  map[string]any
+// @Failure 404  {object}  map[string]any
+// @Failure 500  {object}  map[string]any
+// @Router  /api/v1/projects/{id}/dump [get]
+func Dump(c *gin.Context) {
+	projectID := c.Param("id")
+	var project models.Project
+
+	if err := repositories.Context.Preload("Source").Preload("Target").First(&project, projectID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Project not found"})
+		return
+	}
+
+	_, target, err := project.ConnectForProject()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to databases"})
+		return
+	}
+
+	gen := ddl.NewDDL(project.GetDialect(target))
+	script, err := gen.DumpDatabaseSQL(project.Target, target)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to dump database"})
+		return
+	}
+
+	c.String(http.StatusOK, script)
+	c.Header("Content-Disposition", "attachment; filename=\"dump.sql\"")
 }
