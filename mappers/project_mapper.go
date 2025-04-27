@@ -1,16 +1,23 @@
 package mappers
 
 import (
+	"os"
+
 	"github.com/Tsarbomba69-com/mammoth.server/models"
 	"github.com/Tsarbomba69-com/mammoth.server/schemas"
+	"github.com/Tsarbomba69-com/mammoth.server/utils"
 )
 
 func DBConnectionToModel(conn schemas.DBConnectionRequest) models.DBConnection {
+	pass, err := utils.Encrypt([]byte(os.Getenv("ENCRYPTION_KEY")), conn.Password)
+	if err != nil {
+		panic(err) // Handle error appropriately in production code
+	}
 	return models.DBConnection{
 		Host:     conn.Host,
 		Port:     conn.Port,
 		User:     conn.User,
-		Password: conn.Password,
+		Password: pass,
 		DBName:   conn.DBName,
 	}
 }

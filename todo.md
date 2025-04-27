@@ -7,4 +7,4 @@
 ## Features
 
 - [ ] SQLite support.
-- [x] Backup endpoint.
+- [ ] Backup endpoint.

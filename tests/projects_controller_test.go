@@ -12,6 +12,7 @@ import (
 	"github.com/Tsarbomba69-com/mammoth.server/repositories"
 	"github.com/Tsarbomba69-com/mammoth.server/schemas"
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/postgres"
@@ -35,6 +36,10 @@ func TestCreateProject(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	originalDB := repositories.Context
 	defer func() { repositories.Context = originalDB }()
+	err := godotenv.Load("../.env")
+	if err != nil {
+		t.Fatal("Error loading .env file")
+	}
 
 	t.Run("Success - Project created successfully", func(t *testing.T) {
 		// Arrange

@@ -2,13 +2,14 @@ package models
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
+	"github.com/Tsarbomba69-com/mammoth.server/utils"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
-// TODO: Password should be encrypted and not stored in plain text
 type DBConnection struct {
 	gorm.Model
 	Host     string `json:"host"`
@@ -30,10 +31,14 @@ type Project struct {
 
 // Connect establishes a connection to the database
 func (dbc *DBConnection) Connect() (*gorm.DB, error) {
+	pass, err := utils.Decrypt([]byte([]byte(os.Getenv("ENCRYPTION_KEY"))), dbc.Password)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt password: %v", err)
+	}
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=disable",
 		dbc.Host,
 		dbc.User,
-		dbc.Password,
+		pass,
 		dbc.DBName,
 		dbc.Port,
 	)
