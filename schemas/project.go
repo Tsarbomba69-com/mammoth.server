@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/Tsarbomba69-com/mammoth.server/services"
+	"github.com/Tsarbomba69-com/mammoth.server/types"
 )
 
 type DBConnectionRequest struct {
@@ -42,6 +43,6 @@ type ProjectResponse struct {
 }
 
 type SchemaComparisonResponse struct {
-	Differences     services.SchemaDiff      `json:"differences"`
+	Differences     types.SchemaDiff         `json:"differences"`
 	MigrationScript services.MigrationScript `json:"migration_script"`
 }

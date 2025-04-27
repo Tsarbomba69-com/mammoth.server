@@ -2,6 +2,7 @@ package models
 
 import (
 	"fmt"
+	"strings"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -60,4 +61,20 @@ func (p *Project) ConnectForProject() (*gorm.DB, *gorm.DB, error) {
 	}
 
 	return sourceDB, targetDB, nil
+}
+
+func (p *Project) GetDialect(db *gorm.DB) string {
+	dialect := db.Dialector.Name()
+
+	// Normalize dialect names
+	switch {
+	case strings.Contains(dialect, "postgres"):
+		dialect = "postgres"
+	case strings.Contains(dialect, "sqlite"):
+		dialect = "sqlite"
+	case strings.Contains(dialect, "mysql"):
+		dialect = "mysql"
+	}
+
+	return dialect
 }

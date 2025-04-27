@@ -9,6 +9,7 @@ import (
 	"github.com/Tsarbomba69-com/mammoth.server/repositories"
 	"github.com/Tsarbomba69-com/mammoth.server/schemas"
 	"github.com/Tsarbomba69-com/mammoth.server/services"
+	"github.com/Tsarbomba69-com/mammoth.server/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -90,8 +91,8 @@ func GetProjects(c *gin.Context) {
 func Compare(c *gin.Context) {
 	projectID := c.Param("id")
 	var project models.Project
-	var sourceSchema []services.TableSchema
-	var targetSchema []services.TableSchema
+	var sourceSchema []types.TableSchema
+	var targetSchema []types.TableSchema
 
 	if err := repositories.Context.Preload("Source").Preload("Target").First(&project, projectID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Project not found"})
@@ -117,7 +118,7 @@ func Compare(c *gin.Context) {
 	}
 
 	diff := services.CompareSchemas(sourceSchema, targetSchema)
-	script := services.Generate(diff)
+	script := services.Generate(project.GetDialect(source), diff)
 	c.JSON(http.StatusOK, schemas.SchemaComparisonResponse{
 		Differences:     diff,
 		MigrationScript: script,

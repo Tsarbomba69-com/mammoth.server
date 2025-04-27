@@ -5,11 +5,12 @@ import (
 	"testing"
 
 	"github.com/Tsarbomba69-com/mammoth.server/services"
+	"github.com/Tsarbomba69-com/mammoth.server/types"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
 
-func SetupSchemaDump(t *testing.T, dbName string, schemaFunc func(*gorm.DB)) []services.TableSchema {
+func SetupSchemaDump(t *testing.T, dbName string, schemaFunc func(*gorm.DB)) []types.TableSchema {
 	// Create in-memory SQLite database with proper name substitution
 	db := SetupDB(t, dbName, schemaFunc)
 

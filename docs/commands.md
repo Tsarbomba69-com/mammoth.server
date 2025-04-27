@@ -41,3 +41,9 @@ go test $test_dir -v
 ```bash
 go mod tidy
 ```
+
+## Linting
+
+```bash
+go vet $test_dir
+```
