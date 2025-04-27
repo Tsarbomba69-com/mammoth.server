@@ -100,7 +100,7 @@ const docTemplate = `{
         },
         "/api/v1/projects/{id}/compare": {
             "get": {
-                "description": "initiates schema comparison from the source database to the target database for the specified project",
+                "description": "initiates schema comparison between source and target databases for the specified project",
                 "consumes": [
                     "application/json"
                 ],
@@ -110,7 +110,7 @@ const docTemplate = `{
                 "tags": [
                     "projects"
                 ],
-                "summary": "Compare database",
+                "summary": "Compare database schemas",
                 "parameters": [
                     {
                         "type": "string",
@@ -118,6 +118,13 @@ const docTemplate = `{
                         "name": "id",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "left",
+                        "description": "Comparison direction (left or right)",
+                        "name": "direction",
+                        "in": "query"
                     }
                 ],
                 "responses": {

@@ -77,12 +77,13 @@ func GetProjects(c *gin.Context) {
 }
 
 // Compare initiates database schema comparison for a specific project
-// @Summary Compare database
-// @Description initiates schema comparison from the source database to the target database for the specified project
+// @Summary Compare database schemas
+// @Description initiates schema comparison between source and target databases for the specified project
 // @Tags projects
 // @Accept  json
 // @Produce  json
-// @Param   id   path      string  true  "Project ID"
+// @Param   id         path      string  true  "Project ID"
+// @Param   direction  query     string  false "Comparison direction (left or right)" default(left)
 // @Success 200  {object}  schemas.SchemaComparisonResponse
 // @Failure 400  {object}  map[string]any
 // @Failure 404  {object}  map[string]any
@@ -90,6 +91,7 @@ func GetProjects(c *gin.Context) {
 // @Router  /api/v1/projects/{id}/compare [get]
 func Compare(c *gin.Context) {
 	projectID := c.Param("id")
+	directionParam := c.DefaultQuery("direction", "left")
 	var project models.Project
 	var sourceSchema []models.TableSchema
 	var targetSchema []models.TableSchema
@@ -117,6 +119,13 @@ func Compare(c *gin.Context) {
 		return
 	}
 
+	switch directionParam {
+	case "right":
+		tmp := sourceSchema
+		sourceSchema = targetSchema
+		targetSchema = tmp
+	default: // source_to_target
+	}
 	diff := services.CompareSchemas(sourceSchema, targetSchema)
 	script := services.Generate(project.GetDialect(source), diff)
 	c.JSON(http.StatusOK, schemas.SchemaComparisonResponse{

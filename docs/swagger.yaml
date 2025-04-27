@@ -323,13 +323,18 @@ paths:
     get:
       consumes:
       - application/json
-      description: initiates schema comparison from the source database to the target
-        database for the specified project
+      description: initiates schema comparison between source and target databases
+        for the specified project
       parameters:
       - description: Project ID
         in: path
         name: id
         required: true
+        type: string
+      - default: left
+        description: Comparison direction (left or right)
+        in: query
+        name: direction
         type: string
       produces:
       - application/json
@@ -353,7 +358,7 @@ paths:
           schema:
             additionalProperties: true
             type: object
-      summary: Compare database
+      summary: Compare database schemas
       tags:
       - projects
   /api/v1/projects/{id}/dump:
