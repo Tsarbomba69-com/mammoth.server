@@ -1,20 +1,20 @@
 # 🐘 Mammoth Server
 
-**Mammoth Server** é um serviço leve escrito em Go para **comparação de esquemas de banco de dados** e **geração de scripts de migração**. Ideal para times que desejam automatizar o versionamento e a evolução de schemas com controle, segurança e facilidade.
+**Mammoth Server** is a lightweight service written in Go for **database schema comparison** and **migration script generation**. Ideal for teams looking to automate schema versioning and evolution with control, security, and ease.
 
-## 🚀 Funcionalidades
+## 🚀 Features
 
-- 🔍 Comparação entre dois esquemas de banco de dados (fonte e destino)
-- 🧠 Detecção de diferenças em:
-  - Tabelas (adicionadas/removidas)
-  - Colunas (nome, tipo, nulabilidade, chave primária)
-  - Índices
-  - Chaves estrangeiras
-- 🛠 Geração de scripts de migração (DDL) automaticamente
-- 🌐 API RESTful com endpoints para integração
-- 📦 Suporte atual: PostgreSQL (MySQL em breve)
+- 🔍 Comparison between two database schemas (source and target)
+- 🧠 Detection of differences in:
+  - Tables (added/removed)
+  - Columns (name, type, nullability, primary key)
+  - Indexes
+  - Foreign keys
+- 🛠 Automatic generation of migration scripts (DDL)
+- 🌐 RESTful API with endpoints for integration
+- 📦 Current support: PostgreSQL (MySQL coming soon)
 
-## 📦 Instalação
+## 📦 Installation
 
 ```bash
 git clone https://github.com/Tsarbomba69-com/mammoth.server.git
@@ -22,7 +22,7 @@ cd mammoth.server
 go build -o mammoth
 ```
 
-## 🧪 Uso rápido
+## 🧪 Quick Start
 
 ```bash
 ./mammoth
