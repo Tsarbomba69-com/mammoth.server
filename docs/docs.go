@@ -278,14 +278,27 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "differences": {
-                    "$ref": "#/definitions/services.SchemaDiff"
+                    "$ref": "#/definitions/types.SchemaDiff"
                 },
                 "migration_script": {
                     "$ref": "#/definitions/services.MigrationScript"
                 }
             }
         },
-        "services.ColumnChange": {
+        "services.MigrationScript": {
+            "type": "object",
+            "properties": {
+                "down": {
+                    "description": "SQL for reverting changes",
+                    "type": "string"
+                },
+                "up": {
+                    "description": "SQL for applying changes",
+                    "type": "string"
+                }
+            }
+        },
+        "types.ColumnChange": {
             "type": "object",
             "properties": {
                 "changed_attributes": {
@@ -298,14 +311,14 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "source": {
-                    "$ref": "#/definitions/services.ColumnInfo"
+                    "$ref": "#/definitions/types.ColumnInfo"
                 },
                 "target": {
-                    "$ref": "#/definitions/services.ColumnInfo"
+                    "$ref": "#/definitions/types.ColumnInfo"
                 }
             }
         },
-        "services.ColumnInfo": {
+        "types.ColumnInfo": {
             "type": "object",
             "properties": {
                 "data_type": {
@@ -325,7 +338,27 @@ const docTemplate = `{
                 }
             }
         },
-        "services.ForeignKeyInfo": {
+        "types.ForeignKeyChange": {
+            "type": "object",
+            "properties": {
+                "changed_attributes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "source": {
+                    "$ref": "#/definitions/types.ForeignKeyInfo"
+                },
+                "target": {
+                    "$ref": "#/definitions/types.ForeignKeyInfo"
+                }
+            }
+        },
+        "types.ForeignKeyInfo": {
             "type": "object",
             "properties": {
                 "columns": {
@@ -354,7 +387,7 @@ const docTemplate = `{
                 }
             }
         },
-        "services.IndexChange": {
+        "types.IndexChange": {
             "type": "object",
             "properties": {
                 "changed_attributes": {
@@ -367,14 +400,14 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "source": {
-                    "$ref": "#/definitions/services.IndexInfo"
+                    "$ref": "#/definitions/types.IndexInfo"
                 },
                 "target": {
-                    "$ref": "#/definitions/services.IndexInfo"
+                    "$ref": "#/definitions/types.IndexInfo"
                 }
             }
         },
-        "services.IndexInfo": {
+        "types.IndexInfo": {
             "type": "object",
             "properties": {
                 "columns": {
@@ -394,20 +427,7 @@ const docTemplate = `{
                 }
             }
         },
-        "services.MigrationScript": {
-            "type": "object",
-            "properties": {
-                "down": {
-                    "description": "SQL for reverting changes",
-                    "type": "string"
-                },
-                "up": {
-                    "description": "SQL for applying changes",
-                    "type": "string"
-                }
-            }
-        },
-        "services.SchemaDiff": {
+        "types.SchemaDiff": {
             "type": "object",
             "properties": {
                 "summary": {
@@ -419,19 +439,19 @@ const docTemplate = `{
                 "tables_added": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/services.TableDiff"
+                        "$ref": "#/definitions/types.TableDiff"
                     }
                 },
                 "tables_modified": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/services.TableDiff"
+                        "$ref": "#/definitions/types.TableDiff"
                     }
                 },
                 "tables_removed": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/services.TableDiff"
+                        "$ref": "#/definitions/types.TableDiff"
                     }
                 },
                 "tables_same": {
@@ -442,67 +462,79 @@ const docTemplate = `{
                 }
             }
         },
-        "services.TableDiff": {
+        "types.TableDiff": {
             "type": "object",
             "properties": {
                 "columns_added": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/services.ColumnInfo"
+                        "$ref": "#/definitions/types.ColumnInfo"
                     }
                 },
                 "columns_modified": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/services.ColumnChange"
+                        "$ref": "#/definitions/types.ColumnChange"
                     }
                 },
                 "columns_removed": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/services.ColumnInfo"
+                        "$ref": "#/definitions/types.ColumnInfo"
                     }
                 },
                 "columns_same": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/services.ColumnInfo"
+                        "$ref": "#/definitions/types.ColumnInfo"
                     }
                 },
                 "foreign_key_info_added": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/services.ForeignKeyInfo"
+                        "$ref": "#/definitions/types.ForeignKeyInfo"
                     }
                 },
                 "foreign_key_info_modified": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/services.ForeignKeyInfo"
+                        "$ref": "#/definitions/types.ForeignKeyChange"
+                    }
+                },
+                "foreign_key_info_removed": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.ForeignKeyInfo"
+                    }
+                },
+                "foreign_key_info_same": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.ForeignKeyInfo"
                     }
                 },
                 "indexes_added": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/services.IndexInfo"
+                        "$ref": "#/definitions/types.IndexInfo"
                     }
                 },
                 "indexes_modified": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/services.IndexChange"
+                        "$ref": "#/definitions/types.IndexChange"
                     }
                 },
                 "indexes_removed": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/services.IndexInfo"
+                        "$ref": "#/definitions/types.IndexInfo"
                     }
                 },
                 "indexes_same": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/services.IndexInfo"
+                        "$ref": "#/definitions/types.IndexInfo"
                     }
                 },
                 "table_name": {
