@@ -15,8 +15,8 @@ func TestCompareSchemas(t *testing.T) {
 			db.Exec("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
 		}
 
-		source := SetupTestDB(t, "source", schemaFunc)
-		target := SetupTestDB(t, "target", schemaFunc)
+		source := SetupSchemaDump(t, "source", schemaFunc)
+		target := SetupSchemaDump(t, "target", schemaFunc)
 
 		diff := services.CompareSchemas(source, target)
 
@@ -28,11 +28,11 @@ func TestCompareSchemas(t *testing.T) {
 	})
 
 	t.Run("added table", func(t *testing.T) {
-		source := SetupTestDB(t, "source", func(db *gorm.DB) {
+		source := SetupSchemaDump(t, "source", func(db *gorm.DB) {
 			db.Exec("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
 		})
 
-		target := SetupTestDB(t, "target", func(db *gorm.DB) {
+		target := SetupSchemaDump(t, "target", func(db *gorm.DB) {
 			db.Exec("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
 			db.Exec("CREATE TABLE posts (id INTEGER PRIMARY KEY, title TEXT, user_id INTEGER)")
 		})
@@ -47,12 +47,12 @@ func TestCompareSchemas(t *testing.T) {
 	})
 
 	t.Run("removed table", func(t *testing.T) {
-		source := SetupTestDB(t, "source", func(db *gorm.DB) {
+		source := SetupSchemaDump(t, "source", func(db *gorm.DB) {
 			db.Exec("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
 			db.Exec("CREATE TABLE posts (id INTEGER PRIMARY KEY, title TEXT)")
 		})
 
-		target := SetupTestDB(t, "target", func(db *gorm.DB) {
+		target := SetupSchemaDump(t, "target", func(db *gorm.DB) {
 			db.Exec("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
 		})
 
@@ -66,11 +66,11 @@ func TestCompareSchemas(t *testing.T) {
 	})
 
 	t.Run("modified column", func(t *testing.T) {
-		source := SetupTestDB(t, "source", func(db *gorm.DB) {
+		source := SetupSchemaDump(t, "source", func(db *gorm.DB) {
 			db.Exec("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
 		})
 
-		target := SetupTestDB(t, "target", func(db *gorm.DB) {
+		target := SetupSchemaDump(t, "target", func(db *gorm.DB) {
 			db.Exec("CREATE TABLE users (id INTEGER PRIMARY KEY, name VARCHAR(255))")
 		})
 
@@ -88,11 +88,11 @@ func TestCompareSchemas(t *testing.T) {
 	})
 
 	t.Run("added column", func(t *testing.T) {
-		source := SetupTestDB(t, "source", func(db *gorm.DB) {
+		source := SetupSchemaDump(t, "source", func(db *gorm.DB) {
 			db.Exec("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
 		})
 
-		target := SetupTestDB(t, "target", func(db *gorm.DB) {
+		target := SetupSchemaDump(t, "target", func(db *gorm.DB) {
 			db.Exec("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, email TEXT)")
 		})
 
@@ -108,11 +108,11 @@ func TestCompareSchemas(t *testing.T) {
 	})
 
 	t.Run("added index", func(t *testing.T) {
-		source := SetupTestDB(t, "source", func(db *gorm.DB) {
+		source := SetupSchemaDump(t, "source", func(db *gorm.DB) {
 			db.Exec("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
 		})
 
-		target := SetupTestDB(t, "target", func(db *gorm.DB) {
+		target := SetupSchemaDump(t, "target", func(db *gorm.DB) {
 			db.Exec("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
 			db.Exec("CREATE INDEX idx_users_name ON users(name)")
 		})
@@ -129,12 +129,12 @@ func TestCompareSchemas(t *testing.T) {
 	})
 
 	t.Run("added foreign key", func(t *testing.T) {
-		source := SetupTestDB(t, "source", func(db *gorm.DB) {
+		source := SetupSchemaDump(t, "source", func(db *gorm.DB) {
 			db.Exec("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
 			db.Exec("CREATE TABLE posts (id INTEGER PRIMARY KEY, title TEXT)")
 		})
 
-		target := SetupTestDB(t, "target", func(db *gorm.DB) {
+		target := SetupSchemaDump(t, "target", func(db *gorm.DB) {
 			db.Exec("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
 			db.Exec("CREATE TABLE posts (id INTEGER PRIMARY KEY, title TEXT, user_id INTEGER, FOREIGN KEY(user_id) REFERENCES users(id))")
 		})

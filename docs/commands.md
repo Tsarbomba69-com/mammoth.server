@@ -35,3 +35,9 @@ http://localhost:8080/swagger/index.html
 ```bash
 go test $test_dir -v
 ```
+
+## Clean dependencies
+
+```bash
+go mod tidy
+```
