@@ -9,7 +9,7 @@ import (
 	"github.com/Tsarbomba69-com/mammoth.server/services"
 )
 
-func TestCompareSchemas_Integration(t *testing.T) {
+func TestCompareSchemas(t *testing.T) {
 	t.Run("identical schemas", func(t *testing.T) {
 		schemaFunc := func(db *gorm.DB) {
 			db.Exec("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")

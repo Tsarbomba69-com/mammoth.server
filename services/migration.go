@@ -25,6 +25,9 @@ func Generate(diff SchemaDiff) MigrationScript {
 			upSQL.WriteString(addForeignKeySQL(table.Name, fk))
 			downSQL.WriteString(dropForeignKeySQL(table.Name, fk.Name))
 		}
+	}
+
+	for _, table := range diff.TablesAdded {
 		downSQL.WriteString(fmt.Sprintf("DROP TABLE %s;\n", quoteIdentifier(table.Name)))
 	}
 
@@ -44,6 +47,9 @@ func Generate(diff SchemaDiff) MigrationScript {
 			downSQL.WriteString(addForeignKeySQL(table.Name, fk))
 			upSQL.WriteString(dropForeignKeySQL(table.Name, fk.Name))
 		}
+	}
+
+	for _, table := range diff.TablesRemoved {
 		upSQL.WriteString(fmt.Sprintf("DROP TABLE %s;\n", quoteIdentifier(table.Name)))
 	}
 
@@ -147,8 +153,8 @@ func alterTableSQL(tableDiff TableDiff) string {
 
 	// Modify foreign key (drop and recreate)
 	for _, change := range tableDiff.ForeignKeyInfoModified {
-		sql.WriteString(dropForeignKeySQL(tableDiff.Name, change.Name))
-		sql.WriteString(addForeignKeySQL(tableDiff.Name, change))
+		sql.WriteString(dropForeignKeySQL(tableDiff.Name, change.Source.Name))
+		sql.WriteString(addForeignKeySQL(tableDiff.Name, change.Target))
 	}
 
 	return sql.String()

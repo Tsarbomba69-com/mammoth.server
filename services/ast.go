@@ -39,17 +39,19 @@ type SchemaDiff struct {
 }
 
 type TableDiff struct {
-	Name                   string           `json:"table_name"`
-	ColumnsAdded           []ColumnInfo     `json:"columns_added"`
-	ColumnsRemoved         []ColumnInfo     `json:"columns_removed"`
-	ColumnsModified        []ColumnChange   `json:"columns_modified"`
-	ColumnsSame            []ColumnInfo     `json:"columns_same"`
-	IndexesAdded           []IndexInfo      `json:"indexes_added"`
-	IndexesRemoved         []IndexInfo      `json:"indexes_removed"`
-	IndexesModified        []IndexChange    `json:"indexes_modified"`
-	IndexesSame            []IndexInfo      `json:"indexes_same"`
-	ForeignKeyInfoAdded    []ForeignKeyInfo `json:"foreign_key_info_added"`
-	ForeignKeyInfoModified []ForeignKeyInfo `json:"foreign_key_info_modified"`
+	Name                   string             `json:"table_name"`
+	ColumnsAdded           []ColumnInfo       `json:"columns_added"`
+	ColumnsRemoved         []ColumnInfo       `json:"columns_removed"`
+	ColumnsModified        []ColumnChange     `json:"columns_modified"`
+	ColumnsSame            []ColumnInfo       `json:"columns_same"`
+	IndexesAdded           []IndexInfo        `json:"indexes_added"`
+	IndexesRemoved         []IndexInfo        `json:"indexes_removed"`
+	IndexesModified        []IndexChange      `json:"indexes_modified"`
+	IndexesSame            []IndexInfo        `json:"indexes_same"`
+	ForeignKeyInfoAdded    []ForeignKeyInfo   `json:"foreign_key_info_added"`
+	ForeignKeyInfoModified []ForeignKeyChange `json:"foreign_key_info_modified"`
+	ForeignKeyInfoRemoved  []ForeignKeyInfo   `json:"foreign_key_info_removed"`
+	ForeignKeysInfoSame    []ForeignKeyInfo   `json:"foreign_key_info_same"`
 }
 
 type ColumnChange struct {
@@ -64,6 +66,13 @@ type IndexChange struct {
 	Source      IndexInfo `json:"source"`
 	Target      IndexInfo `json:"target"`
 	ChangedAttr []string  `json:"changed_attributes"`
+}
+
+type ForeignKeyChange struct {
+	Name        string         `json:"name"`
+	Source      ForeignKeyInfo `json:"source"`
+	Target      ForeignKeyInfo `json:"target"`
+	ChangedAttr []string       `json:"changed_attributes"`
 }
 
 type ForeignKeyInfo struct {
@@ -375,7 +384,6 @@ func CompareSchemas(source, target []TableSchema) SchemaDiff {
 	return diff
 }
 
-// TODO: Implement the foreign key comparison logic in compareTables function
 func compareTables(source, target TableSchema) TableDiff {
 	var diff TableDiff
 	diff.Name = source.Name
@@ -487,6 +495,64 @@ func compareTables(source, target TableSchema) TableDiff {
 		}
 	}
 
+	// Compare ForeignKeys
+	sourceForeignKeys := make(map[string]ForeignKeyInfo)
+	targetForeignKeys := make(map[string]ForeignKeyInfo)
+
+	for _, idx := range source.ForeignKeys {
+		sourceForeignKeys[idx.Name] = idx
+	}
+
+	for _, idx := range target.ForeignKeys {
+		targetForeignKeys[idx.Name] = idx
+	}
+
+	// Find added and removed ForeignKeys
+	for name, idx := range targetForeignKeys {
+		if _, exists := sourceForeignKeys[name]; !exists {
+			diff.ForeignKeyInfoAdded = append(diff.ForeignKeyInfoAdded, idx)
+		}
+	}
+
+	for name, idx := range sourceForeignKeys {
+		if _, exists := targetForeignKeys[name]; !exists {
+			diff.ForeignKeyInfoRemoved = append(diff.ForeignKeyInfoRemoved, idx)
+		}
+	}
+
+	// Compare ForeignKeys that exist in both
+	for name, sourceFk := range sourceForeignKeys {
+		if targetFk, exists := targetForeignKeys[name]; exists {
+			if !reflect.DeepEqual(sourceFk, targetFk) {
+				var changed []string
+				if !stringSlicesEqual(sourceFk.Columns, targetFk.Columns) {
+					changed = append(changed, "columns")
+				}
+				if sourceFk.Name != targetFk.Name {
+					changed = append(changed, "name")
+				}
+				if sourceFk.OnDelete != targetFk.OnDelete {
+					changed = append(changed, "on_delete")
+				}
+				if sourceFk.OnUpdate != targetFk.OnUpdate {
+					changed = append(changed, "on_update")
+				}
+				if sourceFk.ReferencedTable != targetFk.ReferencedTable {
+					changed = append(changed, "referenced_table")
+				}
+
+				diff.ForeignKeyInfoModified = append(diff.ForeignKeyInfoModified, ForeignKeyChange{
+					Name:        name,
+					Source:      sourceFk,
+					Target:      targetFk,
+					ChangedAttr: changed,
+				})
+			} else {
+				diff.ForeignKeysInfoSame = append(diff.ForeignKeysInfoSame, sourceFk)
+			}
+		}
+	}
+
 	return diff
 }
 
@@ -503,31 +569,12 @@ func stringSlicesEqual(a, b []string) bool {
 }
 
 func GetForeignKeys(db *gorm.DB, tableName string) ([]ForeignKeyInfo, error) {
-	query := `
-		SELECT
-			tc.constraint_name,
-			kcu.column_name,
-			ccu.table_name AS referenced_table,
-			ccu.column_name AS referenced_column,
-			rc.update_rule,
-			rc.delete_rule
-		FROM
-			information_schema.table_constraints AS tc
-		JOIN information_schema.key_column_usage AS kcu
-			ON tc.constraint_name = kcu.constraint_name
-			AND tc.table_name = kcu.table_name
-		JOIN information_schema.referential_constraints AS rc
-			ON tc.constraint_name = rc.constraint_name
-		JOIN information_schema.constraint_column_usage AS ccu
-			ON ccu.constraint_name = tc.constraint_name
-		WHERE
-			tc.constraint_type = 'FOREIGN KEY'
-			AND tc.table_name = $1
-		ORDER BY
-			tc.constraint_name, kcu.ordinal_position;
-	`
+	qs, err := getQuerySet(db)
+	if err != nil {
+		return nil, err
+	}
 
-	rows, err := db.Raw(query, tableName).Rows()
+	rows, err := db.Raw(qs.ForeignKey, tableName).Rows()
 	if err != nil {
 		return nil, err
 	}
