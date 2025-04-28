@@ -3,6 +3,7 @@ package tests
 import (
 	"bytes"
 	"encoding/json"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -32,8 +33,13 @@ func TestCreateProject(t *testing.T) {
 		// Arrange
 		gormDB := SetupDB(t, "mammoth", func(db *gorm.DB) {
 			// Setup your schema here if needed
-			db.AutoMigrate(&models.Project{})
 			repositories.Context = db
+			if err := repositories.Context.AutoMigrate(
+				&models.DBConnection{},
+				&models.Project{},
+			); err != nil {
+				log.Fatal("Failed to migrate database: ", err)
+			}
 		})
 		originalDB := repositories.Context
 		repositories.Context = gormDB

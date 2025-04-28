@@ -19,18 +19,36 @@ import (
 // @host localhost:8080
 // @BasePath /
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
+	// Load environment variables
+	if err := godotenv.Load(); err != nil {
+		log.Fatal("Error loading .env file: ", err)
 	}
 
+	// Set up port
 	port := os.Getenv("APP_PORT")
 	if port == "" {
 		port = "8080"
 	}
-	repositories.ConnectDatabase()
-	repositories.Context.AutoMigrate(&models.DBConnection{}, &models.Project{})
+
+	// Initialize database connection
+	if err := repositories.ConnectDatabase(); err != nil {
+		log.Fatal("Failed to connect to database: ", err)
+	}
+
+	// Run database migrations
+	if err := repositories.Context.AutoMigrate(
+		&models.DBConnection{},
+		&models.Project{},
+	); err != nil {
+		log.Fatal("Failed to migrate database: ", err)
+	}
+
+	// Set up router
 	r := routes.SetupRouter()
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(files.Handler))
-	r.Run(":" + port)
+
+	// Start server
+	if err := r.Run(":" + port); err != nil {
+		log.Fatal("Failed to start server: ", err)
+	}
 }
