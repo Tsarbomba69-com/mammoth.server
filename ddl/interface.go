@@ -6,15 +6,17 @@ import (
 )
 
 type DDL interface {
+	CreateSchemaSQL(schemaName string) string
 	CreateTableSQL(tableDiff models.TableDiff) string
 	AlterTableSQL(tableDiff models.TableDiff) string
 	RevertAlterTableSQL(tableDiff models.TableDiff) string
-	CreateIndexSQL(tableName string, idx models.IndexInfo) string
-	DropIndexSQL(tableName string, idx models.IndexInfo) string
-	AddForeignKeySQL(table string, fk models.ForeignKeyInfo) string
-	DropForeignKeySQL(table, constraint string) string
-	DropTableSQL(tableName string) string
+	CreateIndexSQL(schemaName, tableName string, idx models.IndexInfo) string
+	DropIndexSQL(schemaName, tableName string, idx models.IndexInfo) string
+	AddForeignKeySQL(schemaName, tableName string, fk models.ForeignKeyInfo) string
+	DropForeignKeySQL(schemaName, tableName, constraint string) string
+	DropTableSQL(schemaName, tableName string) string
 	DumpDatabaseSQL(connection models.DBConnection, db *gorm.DB) (string, error)
+	DropSchemaSQL(schema string) string
 }
 
 func NewDDL(dialect string) DDL {

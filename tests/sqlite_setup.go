@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func SetupSchemaDump(t *testing.T, dbName string, schemaFunc func(*gorm.DB)) []models.TableSchema {
+func SetupSchemaDump(t *testing.T, dbName string, schemaFunc func(*gorm.DB)) []models.Schema {
 	// Create in-memory SQLite database with proper name substitution
 	db := SetupDB(t, dbName, schemaFunc)
 

@@ -11,6 +11,20 @@ import (
 
 var dialectQueries = map[string]models.QuerySet{
 	"postgres": {
+		Schema: `
+			SELECT schema_name 
+			FROM information_schema.schemata
+			WHERE schema_name NOT LIKE 'pg_%'
+			AND schema_name != 'information_schema'
+			ORDER BY schema_name
+		`,
+		Table: `
+			SELECT table_name as name,
+			table_schema AS schema_name
+			FROM information_schema.tables
+			WHERE table_schema = current_schema()
+			ORDER BY table_name
+		`,
 		Column: `
 			SELECT 
 				c.table_name,
@@ -87,6 +101,26 @@ var dialectQueries = map[string]models.QuerySet{
 		`,
 	},
 	"sqlite": {
+		Schema: `
+        SELECT 'main' AS schema_name
+        UNION
+        SELECT name AS schema_name
+        FROM pragma_database_list
+        WHERE name != 'main'
+        ORDER BY schema_name
+		`,
+		Table: `
+        SELECT 
+            name AS name,
+            CASE 
+                WHEN sql LIKE '%schema%' THEN 'main' 
+                ELSE 'main' 
+            END AS schema_name
+        FROM sqlite_master
+        WHERE type = 'table'
+        AND name NOT LIKE 'sqlite_%'
+        ORDER BY name
+		`,
 		Column: `
 			SELECT 
 				m.name AS table_name,
@@ -129,6 +163,18 @@ var dialectQueries = map[string]models.QuerySet{
 		`,
 	},
 	"mysql": {
+		Schema: `
+			SELECT schema_name 
+			FROM information_schema.schemata
+			WHERE schema_name NOT IN ('mysql', 'information_schema', 'performance_schema', 'sys')
+			ORDER BY schema_name
+		`,
+		Table: `
+			SELECT table_name,
+			FROM information_schema.tables
+			WHERE table_schema = DATABASE()
+			ORDER BY table_name
+		`,
 		Column: `
 			SELECT 
 				table_name,
@@ -169,19 +215,34 @@ var dialectQueries = map[string]models.QuerySet{
 	},
 }
 
-func DumpSchemaAST(db *gorm.DB) ([]models.TableSchema, error) {
-	tables, err := db.Migrator().GetTables()
-	if err != nil {
-		return nil, err
-	}
-
+func DumpSchemaAST(db *gorm.DB) ([]models.Schema, error) {
 	// Use channels for parallel execution
+	schemasChan := make(chan []models.Schema)
+	tablesChan := make(chan map[string][]struct{ Name, SchemaName string })
 	columnsChan := make(chan map[string][]models.ColumnInfo)
 	indexesChan := make(chan map[string][]models.IndexInfo)
 	fksChan := make(chan map[string][]models.ForeignKeyInfo)
-	errChan := make(chan error, 3)
+	errChan := make(chan error, 5)
 
 	// Launch goroutines for each metadata type
+	go func() {
+		schemas, err := getAllSchemas(db)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		schemasChan <- schemas
+	}()
+
+	go func() {
+		tables, err := getAllTables(db)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		tablesChan <- tables
+	}()
+
 	go func() {
 		cols, err := getAllColumns(db)
 		if err != nil {
@@ -210,11 +271,13 @@ func DumpSchemaAST(db *gorm.DB) ([]models.TableSchema, error) {
 	}()
 
 	// Collect results
+	var schemas []models.Schema
+	var tables map[string][]struct{ Name, SchemaName string }
 	var columnsByTable map[string][]models.ColumnInfo
 	var indexesByTable map[string][]models.IndexInfo
 	var fksByTable map[string][]models.ForeignKeyInfo
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 5; i++ {
 		select {
 		case err := <-errChan:
 			return nil, err
@@ -224,37 +287,110 @@ func DumpSchemaAST(db *gorm.DB) ([]models.TableSchema, error) {
 			indexesByTable = idxs
 		case fks := <-fksChan:
 			fksByTable = fks
+		case ts := <-tablesChan:
+			tables = ts
+		case ss := <-schemasChan:
+			schemas = ss
 		}
 	}
 
 	// Build schemas
-	schemas := make([]models.TableSchema, 0, len(tables))
-	for _, table := range tables {
-		schemas = append(schemas, models.TableSchema{
-			Name:        table,
-			Columns:     columnsByTable[table],
-			Indexes:     indexesByTable[table],
-			ForeignKeys: fksByTable[table],
-		})
+	for _, schema := range schemas {
+		schema.Tables = make([]models.TableSchema, 0, len(tables[schema.Name]))
+		for _, table := range tables[schema.Name] {
+			schema.Tables = append(schema.Tables, models.TableSchema{
+				Name:        table.Name,
+				SchemaName:  table.SchemaName,
+				Columns:     columnsByTable[table.Name],
+				Indexes:     indexesByTable[table.Name],
+				ForeignKeys: fksByTable[table.Name],
+			})
+		}
+		schemas = append(schemas, schema)
 	}
 
 	return schemas, nil
 }
 
-func CompareSchemas(source, target []models.TableSchema) models.SchemaDiff {
+func getAllSchemas(db *gorm.DB) ([]models.Schema, error) {
+	qs, err := getQuerySet(db)
+	if err != nil {
+		return nil, err
+	}
+	var schemas []string
+
+	if err := db.Raw(qs.Schema).Scan(&schemas).Error; err != nil {
+		return nil, fmt.Errorf("failed to get all schemas: %v", err)
+	}
+
+	result := make([]models.Schema, 0, len(schemas))
+	for _, s := range schemas {
+		result = append(result, models.Schema{
+			Name: s,
+		})
+	}
+	return result, nil
+}
+
+func getAllTables(db *gorm.DB) (map[string][]struct{ Name, SchemaName string }, error) {
+	qs, err := getQuerySet(db)
+	if err != nil {
+		return nil, err
+	}
+
+	var tables []struct {
+		Name       string
+		SchemaName string
+	}
+
+	if err := db.Raw(qs.Table).Scan(&tables).Error; err != nil {
+		return nil, fmt.Errorf("failed to get all tables: %v", err)
+	}
+	result := make(map[string][]struct{ Name, SchemaName string })
+	for _, c := range tables {
+		result[c.SchemaName] = append(result[c.SchemaName], struct{ Name, SchemaName string }{
+			Name:       c.Name,
+			SchemaName: c.SchemaName,
+		})
+	}
+	return result, nil
+}
+
+func CompareSchemas(source, target []models.Schema) models.SchemaDiff {
 	var diff models.SchemaDiff
 	diff.Summary = make(map[string]int)
 
 	// Create maps for quick lookup
+	sourceSchemas := make(map[string]models.Schema)
+	targetSchemas := make(map[string]models.Schema)
 	sourceTables := make(map[string]models.TableSchema)
 	targetTables := make(map[string]models.TableSchema)
 
-	for _, table := range source {
-		sourceTables[table.Name] = table
+	for _, schema := range source {
+		sourceSchemas[schema.Name] = schema
+		for _, table := range schema.Tables {
+			sourceTables[table.Name] = table
+		}
 	}
 
-	for _, table := range target {
-		targetTables[table.Name] = table
+	for _, schema := range target {
+		targetSchemas[schema.Name] = schema
+		for _, table := range schema.Tables {
+			targetTables[table.Name] = table
+		}
+	}
+
+	// Find added and removed schemas
+	for name, targetSchema := range targetSchemas {
+		if _, exists := sourceSchemas[name]; !exists {
+			diff.SchemasAdded = append(diff.SchemasAdded, targetSchema.Name)
+		}
+	}
+
+	for name, sourceSchema := range sourceSchemas {
+		if _, exists := targetSchemas[name]; !exists {
+			diff.SchemasRemoved = append(diff.SchemasRemoved, sourceSchema.Name)
+		}
 	}
 
 	// Find added and removed tables
@@ -262,6 +398,7 @@ func CompareSchemas(source, target []models.TableSchema) models.SchemaDiff {
 		if _, exists := sourceTables[name]; !exists {
 			diff.TablesAdded = append(diff.TablesAdded, models.TableDiff{
 				Name:                name,
+				SchemaName:          targetTable.SchemaName,
 				ColumnsAdded:        targetTable.Columns,
 				IndexesAdded:        targetTable.Indexes,
 				ForeignKeyInfoAdded: targetTable.ForeignKeys,
@@ -273,6 +410,7 @@ func CompareSchemas(source, target []models.TableSchema) models.SchemaDiff {
 		if _, exists := targetTables[name]; !exists {
 			diff.TablesRemoved = append(diff.TablesRemoved, models.TableDiff{
 				Name:                name,
+				SchemaName:          sourceTable.SchemaName,
 				ColumnsAdded:        sourceTable.Columns,
 				IndexesAdded:        sourceTable.Indexes,
 				ForeignKeyInfoAdded: sourceTable.ForeignKeys,
@@ -306,6 +444,7 @@ func CompareSchemas(source, target []models.TableSchema) models.SchemaDiff {
 func compareTables(source, target models.TableSchema) models.TableDiff {
 	var diff models.TableDiff
 	diff.Name = source.Name
+	diff.SchemaName = source.SchemaName
 
 	// Compare columns
 	sourceColumns := make(map[string]models.ColumnInfo)

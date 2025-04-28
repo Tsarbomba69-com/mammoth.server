@@ -33,7 +33,7 @@ http://localhost:8080/swagger/index.html
 ## Run tests
 
 ```bash
-go test $test_dir -v
+go test $test_dir -v -cover
 ```
 
 ## Clean dependencies
@@ -45,5 +45,5 @@ go mod tidy
 ## Linting
 
 ```bash
-go vet $test_dir
+go vet $file_dir
 ```

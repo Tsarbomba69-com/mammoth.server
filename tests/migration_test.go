@@ -20,7 +20,7 @@ func TestCodeGeneration(t *testing.T) {
 
 		diff := services.CompareSchemas(source, target)
 		migrationScript := services.Generate("postgres", diff)
-		expectedUp := "CREATE TABLE \"posts\" (\n  \"id\" INTEGER,\n  \"title\" TEXT,\n  \"user_id\" INTEGER,\n  PRIMARY KEY (\"id\")\n);\n"
+		expectedUp := "CREATE TABLE \"main\".\"posts\" (\n  \"id\" INTEGER,\n  \"title\" TEXT,\n  \"user_id\" INTEGER,\n  PRIMARY KEY (\"id\")\n);\n"
 
 		if migrationScript.Up != expectedUp {
 			t.Errorf("expected migration script:\n%s\nbut got:\n%s", expectedUp, migrationScript.Up)
@@ -39,7 +39,7 @@ func TestCodeGeneration(t *testing.T) {
 		diff := services.CompareSchemas(source, target)
 		migrationScript := services.Generate("postgres", diff)
 
-		expectedUp := "ALTER TABLE \"users\" ADD COLUMN \"name\" TEXT;\n"
+		expectedUp := "ALTER TABLE \"main\".\"users\" ADD COLUMN \"name\" TEXT;\n"
 
 		if migrationScript.Up != expectedUp {
 			t.Errorf("expected migration script:\n%s\nbut got:\n%s", expectedUp, migrationScript.Up)
@@ -58,7 +58,7 @@ func TestCodeGeneration(t *testing.T) {
 		diff := services.CompareSchemas(source, target)
 		migrationScript := services.Generate("postgres", diff)
 
-		expectedUp := "ALTER TABLE \"users\" DROP COLUMN \"name\";\n"
+		expectedUp := "ALTER TABLE \"main\".\"users\" DROP COLUMN \"name\";\n"
 
 		if migrationScript.Up != expectedUp {
 			t.Errorf("expected migration script:\n%s\nbut got:\n%s", expectedUp, migrationScript.Up)
@@ -78,7 +78,7 @@ func TestCodeGeneration(t *testing.T) {
 		diff := services.CompareSchemas(source, target)
 		migrationScript := services.Generate("postgres", diff)
 
-		expectedUp := "CREATE UNIQUE INDEX \"idx_users_email\" ON \"users\" (\"email\");\n"
+		expectedUp := "CREATE UNIQUE INDEX \"idx_users_email\" ON \"main\".\"users\" (\"email\");\n"
 
 		if migrationScript.Up != expectedUp {
 			t.Errorf("expected migration script:\n%s\nbut got:\n%s", expectedUp, migrationScript.Up)
@@ -98,7 +98,7 @@ func TestCodeGeneration(t *testing.T) {
 		diff := services.CompareSchemas(source, target)
 		migrationScript := services.Generate("postgres", diff)
 
-		expectedUp := "DROP TABLE \"sessions\";\n"
+		expectedUp := "DROP TABLE \"main\".\"sessions\";\n"
 
 		if migrationScript.Up != expectedUp {
 			t.Errorf("expected migration script:\n%s\nbut got:\n%s", expectedUp, migrationScript.Up)

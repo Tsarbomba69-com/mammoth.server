@@ -93,8 +93,8 @@ func Compare(c *gin.Context) {
 	projectID := c.Param("id")
 	directionParam := c.DefaultQuery("direction", "left")
 	var project models.Project
-	var sourceSchema []models.TableSchema
-	var targetSchema []models.TableSchema
+	var sourceSchema []models.Schema
+	var targetSchema []models.Schema
 
 	if err := repositories.Context.Preload("Source").Preload("Target").First(&project, projectID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Project not found"})

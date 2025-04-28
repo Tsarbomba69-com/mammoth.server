@@ -16,9 +16,17 @@ import (
 // postgresql_ddl.go
 type PostgreSQLDDL struct{} // Empty struct since we don't need state
 
+func (p PostgreSQLDDL) CreateSchemaSQL(schemaName string) string {
+	return fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s;\n", quoteIdentifier(schemaName))
+}
+
+func (p PostgreSQLDDL) DropSchemaSQL(schema string) string {
+	return fmt.Sprintf("DROP SCHEMA IF EXISTS %s CASCADE;\n", quoteIdentifier(schema))
+}
+
 func (p PostgreSQLDDL) CreateTableSQL(tableDiff models.TableDiff) string {
 	var sql strings.Builder
-	sql.WriteString(fmt.Sprintf("CREATE TABLE %s (\n", quoteIdentifier(tableDiff.Name)))
+	sql.WriteString(fmt.Sprintf("CREATE TABLE %s.%s (\n", quoteIdentifier(tableDiff.SchemaName), quoteIdentifier(tableDiff.Name)))
 
 	// Add columns
 	for i, col := range append(tableDiff.ColumnsSame, tableDiff.ColumnsAdded...) {
@@ -50,7 +58,7 @@ func (p PostgreSQLDDL) CreateTableSQL(tableDiff models.TableDiff) string {
 	// Add indexes
 	for _, idx := range append(tableDiff.IndexesSame, tableDiff.IndexesAdded...) {
 		if !idx.IsPrimary { // Primary key already handled
-			sql.WriteString(p.CreateIndexSQL(tableDiff.Name, idx))
+			sql.WriteString(p.CreateIndexSQL(tableDiff.SchemaName, tableDiff.Name, idx))
 		}
 	}
 
@@ -60,11 +68,12 @@ func (p PostgreSQLDDL) CreateTableSQL(tableDiff models.TableDiff) string {
 func (p PostgreSQLDDL) AlterTableSQL(tableDiff models.TableDiff) string {
 	var sql strings.Builder
 	tableName := quoteIdentifier(tableDiff.Name)
+	schemaName := quoteIdentifier(tableDiff.SchemaName)
 
 	// Add columns
 	for _, col := range tableDiff.ColumnsAdded {
-		sql.WriteString(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s",
-			tableName, quoteIdentifier(col.Name), col.DataType))
+		sql.WriteString(fmt.Sprintf("ALTER TABLE %s.%s ADD COLUMN %s %s",
+			schemaName, tableName, quoteIdentifier(col.Name), col.DataType))
 		if !col.IsNullable {
 			sql.WriteString(" NOT NULL")
 		}
@@ -79,14 +88,14 @@ func (p PostgreSQLDDL) AlterTableSQL(tableDiff models.TableDiff) string {
 
 	// Drop columns
 	for _, col := range tableDiff.ColumnsRemoved {
-		sql.WriteString(fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s;\n",
-			tableName, quoteIdentifier(col.Name)))
+		sql.WriteString(fmt.Sprintf("ALTER TABLE %s.%s DROP COLUMN %s;\n",
+			schemaName, tableName, quoteIdentifier(col.Name)))
 	}
 
 	// Modify columns
 	for _, change := range tableDiff.ColumnsModified {
-		sql.WriteString(fmt.Sprintf("ALTER TABLE %s MODIFY COLUMN %s %s",
-			tableName, quoteIdentifier(change.Name), change.Target.DataType))
+		sql.WriteString(fmt.Sprintf("ALTER TABLE %s.%s MODIFY COLUMN %s %s",
+			schemaName, tableName, quoteIdentifier(change.Name), change.Target.DataType))
 		if !change.Target.IsNullable {
 			sql.WriteString(" NOT NULL")
 		}
@@ -98,24 +107,24 @@ func (p PostgreSQLDDL) AlterTableSQL(tableDiff models.TableDiff) string {
 
 	// Add indexes
 	for _, idx := range tableDiff.IndexesAdded {
-		sql.WriteString(p.CreateIndexSQL(tableDiff.Name, idx))
+		sql.WriteString(p.CreateIndexSQL(tableDiff.SchemaName, tableDiff.Name, idx))
 	}
 
 	// Drop indexes
 	for _, idx := range tableDiff.IndexesRemoved {
-		sql.WriteString(p.DropIndexSQL(tableDiff.Name, idx))
+		sql.WriteString(p.DropIndexSQL(tableDiff.SchemaName, tableDiff.Name, idx))
 	}
 
 	// Modify indexes (drop and recreate)
 	for _, change := range tableDiff.IndexesModified {
-		sql.WriteString(p.DropIndexSQL(tableDiff.Name, change.Source))
-		sql.WriteString(p.CreateIndexSQL(tableDiff.Name, change.Target))
+		sql.WriteString(p.DropIndexSQL(tableDiff.SchemaName, tableDiff.Name, change.Source))
+		sql.WriteString(p.CreateIndexSQL(tableDiff.SchemaName, tableDiff.Name, change.Target))
 	}
 
 	// Modify foreign key (drop and recreate)
 	for _, change := range tableDiff.ForeignKeyInfoModified {
-		sql.WriteString(p.DropForeignKeySQL(tableDiff.Name, change.Source.Name))
-		sql.WriteString(p.AddForeignKeySQL(tableDiff.Name, change.Target))
+		sql.WriteString(p.DropForeignKeySQL(schemaName, tableDiff.Name, change.Source.Name))
+		sql.WriteString(p.AddForeignKeySQL(schemaName, tableDiff.Name, change.Target))
 	}
 
 	return sql.String()
@@ -124,17 +133,18 @@ func (p PostgreSQLDDL) AlterTableSQL(tableDiff models.TableDiff) string {
 func (p PostgreSQLDDL) RevertAlterTableSQL(tableDiff models.TableDiff) string {
 	var sql strings.Builder
 	tableName := quoteIdentifier(tableDiff.Name)
+	schemaName := quoteIdentifier(tableDiff.SchemaName)
 
 	// Revert added columns (drop them)
 	for _, col := range tableDiff.ColumnsAdded {
-		sql.WriteString(fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s;\n",
-			tableName, quoteIdentifier(col.Name)))
+		sql.WriteString(fmt.Sprintf("ALTER TABLE %s.%s DROP COLUMN %s;\n",
+			schemaName, tableName, quoteIdentifier(col.Name)))
 	}
 
 	// Revert removed columns (add them back)
 	for _, col := range tableDiff.ColumnsRemoved {
-		sql.WriteString(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s",
-			tableName, quoteIdentifier(col.Name), col.DataType))
+		sql.WriteString(fmt.Sprintf("ALTER TABLE %s.%s ADD COLUMN %s %s",
+			schemaName, tableName, quoteIdentifier(col.Name), col.DataType))
 		if !col.IsNullable {
 			sql.WriteString(" NOT NULL")
 		}
@@ -146,8 +156,8 @@ func (p PostgreSQLDDL) RevertAlterTableSQL(tableDiff models.TableDiff) string {
 
 	// Revert column modifications
 	for _, change := range tableDiff.ColumnsModified {
-		sql.WriteString(fmt.Sprintf("ALTER TABLE %s MODIFY COLUMN %s %s",
-			tableName, quoteIdentifier(change.Name), change.Source.DataType))
+		sql.WriteString(fmt.Sprintf("ALTER TABLE %s.%s MODIFY COLUMN %s %s",
+			schemaName, tableName, quoteIdentifier(change.Name), change.Source.DataType))
 		if !change.Source.IsNullable {
 			sql.WriteString(" NOT NULL")
 		}
@@ -159,24 +169,24 @@ func (p PostgreSQLDDL) RevertAlterTableSQL(tableDiff models.TableDiff) string {
 
 	// Revert added indexes (drop them)
 	for _, idx := range tableDiff.IndexesAdded {
-		sql.WriteString(p.DropIndexSQL(tableDiff.Name, idx))
+		sql.WriteString(p.DropIndexSQL(tableDiff.SchemaName, tableDiff.Name, idx))
 	}
 
 	// Revert removed indexes (add them back)
 	for _, idx := range tableDiff.IndexesRemoved {
-		sql.WriteString(p.CreateIndexSQL(tableDiff.Name, idx))
+		sql.WriteString(p.CreateIndexSQL(tableDiff.SchemaName, tableDiff.Name, idx))
 	}
 
 	// Revert modified indexes
 	for _, change := range tableDiff.IndexesModified {
-		sql.WriteString(p.DropIndexSQL(tableDiff.Name, change.Target))
-		sql.WriteString(p.CreateIndexSQL(tableDiff.Name, change.Source))
+		sql.WriteString(p.DropIndexSQL(tableDiff.SchemaName, tableDiff.Name, change.Target))
+		sql.WriteString(p.CreateIndexSQL(tableDiff.SchemaName, tableDiff.Name, change.Source))
 	}
 
 	return sql.String()
 }
 
-func (p PostgreSQLDDL) CreateIndexSQL(tableName string, idx models.IndexInfo) string {
+func (p PostgreSQLDDL) CreateIndexSQL(schemaName, tableName string, idx models.IndexInfo) string {
 	if idx.IsPrimary {
 		return "" // Already handled in CREATE TABLE
 	}
@@ -191,24 +201,26 @@ func (p PostgreSQLDDL) CreateIndexSQL(tableName string, idx models.IndexInfo) st
 		quotedColumns[i] = quoteIdentifier(col)
 	}
 
-	return fmt.Sprintf("CREATE %s %s ON %s (%s);\n",
+	return fmt.Sprintf("CREATE %s %s ON %s.%s (%s);\n",
 		indexType,
 		quoteIdentifier(idx.Name),
+		quoteIdentifier(schemaName),
 		quoteIdentifier(tableName),
 		strings.Join(quotedColumns, ", "))
 }
 
-func (p PostgreSQLDDL) DropIndexSQL(tableName string, idx models.IndexInfo) string {
+func (p PostgreSQLDDL) DropIndexSQL(schemaName, tableName string, idx models.IndexInfo) string {
 	if idx.IsPrimary {
-		return fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT %s;\n",
+		return fmt.Sprintf("ALTER TABLE %s.%s DROP CONSTRAINT %s;\n",
+			quoteIdentifier(schemaName),
 			quoteIdentifier(tableName),
 			quoteIdentifier(idx.Name))
 	}
 	return fmt.Sprintf("DROP INDEX %s;\n", quoteIdentifier(idx.Name))
 }
 
-func (p PostgreSQLDDL) DropTableSQL(tableName string) string {
-	return fmt.Sprintf("DROP TABLE %s;\n", quoteIdentifier(tableName))
+func (p PostgreSQLDDL) DropTableSQL(schemaName, tableName string) string {
+	return fmt.Sprintf("DROP TABLE %s.%s;\n", quoteIdentifier(schemaName), quoteIdentifier(tableName))
 }
 
 func quoteIdentifier(name string) string {
@@ -223,16 +235,24 @@ func joinIdentifiers(cols []string) string {
 	return strings.Join(parts, ", ")
 }
 
-func (p PostgreSQLDDL) AddForeignKeySQL(table string, fk models.ForeignKeyInfo) string {
+func (p PostgreSQLDDL) AddForeignKeySQL(schemaName, table string, fk models.ForeignKeyInfo) string {
 	cols := joinIdentifiers(fk.Columns)
 	refCols := joinIdentifiers(fk.ReferencedColumns)
 
-	return fmt.Sprintf(`ALTER TABLE %s ADD CONSTRAINT %s FOREIGN KEY (%s) REFERENCES %s (%s) ON DELETE %s ON UPDATE %s;
-`, quoteIdentifier(table), quoteIdentifier(fk.Name), cols, quoteIdentifier(fk.ReferencedTable), refCols, fk.OnDelete, fk.OnUpdate)
+	return fmt.Sprintf(`ALTER TABLE %s.%s ADD CONSTRAINT %s FOREIGN KEY (%s) REFERENCES %s.%s (%s) ON DELETE %s ON UPDATE %s;`,
+		quoteIdentifier(schemaName),
+		quoteIdentifier(table),
+		quoteIdentifier(fk.Name),
+		cols,
+		quoteIdentifier(schemaName), // TODO: use fk.ReferencedSchema if available
+		quoteIdentifier(fk.ReferencedTable),
+		refCols,
+		fk.OnDelete,
+		fk.OnUpdate)
 }
 
-func (p PostgreSQLDDL) DropForeignKeySQL(table, constraint string) string {
-	return fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT %s;\n", quoteIdentifier(table), quoteIdentifier(constraint))
+func (p PostgreSQLDDL) DropForeignKeySQL(schemaName, table, constraint string) string {
+	return fmt.Sprintf("ALTER TABLE %s.%s DROP CONSTRAINT %s;\n", quoteIdentifier(schemaName), quoteIdentifier(table), quoteIdentifier(constraint))
 }
 
 func (p PostgreSQLDDL) DumpDatabaseSQL(connection models.DBConnection, db *gorm.DB) (string, error) {

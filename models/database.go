@@ -1,7 +1,13 @@
 package models
 
+type Schema struct {
+	Name   string        `json:"name"`
+	Tables []TableSchema `json:"tables"`
+}
+
 type TableSchema struct {
 	Name        string           `json:"name"`
+	SchemaName  string           `json:"schema_name"`
 	Columns     []ColumnInfo     `json:"columns"`
 	Indexes     []IndexInfo      `json:"indexes"`
 	ForeignKeys []ForeignKeyInfo `json:"foreign_keys"`
@@ -23,6 +29,9 @@ type IndexInfo struct {
 }
 
 type SchemaDiff struct {
+	SchemasAdded   []string       `json:"schemas_added"`
+	SchemasSame    []string       `json:"schemas_same"`
+	SchemasRemoved []string       `json:"schemas_removed"`
 	TablesAdded    []TableDiff    `json:"tables_added"`
 	TablesRemoved  []TableDiff    `json:"tables_removed"`
 	TablesModified []TableDiff    `json:"tables_modified"`
@@ -32,6 +41,7 @@ type SchemaDiff struct {
 
 type TableDiff struct {
 	Name                   string             `json:"table_name"`
+	SchemaName             string             `json:"schema_name"`
 	ColumnsAdded           []ColumnInfo       `json:"columns_added"`
 	ColumnsRemoved         []ColumnInfo       `json:"columns_removed"`
 	ColumnsModified        []ColumnChange     `json:"columns_modified"`
@@ -77,6 +87,8 @@ type ForeignKeyInfo struct {
 }
 
 type QuerySet struct {
+	Schema     string
+	Table      string
 	Column     string
 	Index      string
 	ForeignKey string
