@@ -715,7 +715,7 @@ func getAllColumns(db *gorm.DB) (map[string][]models.ColumnInfo, error) {
 }
 
 func getQuerySet(db *gorm.DB) (models.QuerySet, error) {
-	dialect := db.Dialector.Name()
+	dialect := db.Name()
 
 	// Normalize dialect names
 	switch {

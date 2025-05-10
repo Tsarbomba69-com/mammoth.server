@@ -33,7 +33,10 @@ func SetupDB(t *testing.T, dbName string, schemaFunc func(*gorm.DB)) *gorm.DB {
 	schemaFunc(db)
 	t.Cleanup(func() {
 		if sqlDB, err := db.DB(); err == nil {
-			sqlDB.Close() // This will destroy the in-memory database
+			err = sqlDB.Close() // This will destroy the in-memory database
+			if err != nil {
+				t.Fatalf("failed to close database: %v", err)
+			}
 		}
 	})
 	return db
