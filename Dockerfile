@@ -17,6 +17,7 @@ FROM scratch
 # COPY --from=alpine:latest /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 # Copy the binary
+WORKDIR /app
 COPY --from=builder /app/.env .
 COPY --from=builder /app/main .
 

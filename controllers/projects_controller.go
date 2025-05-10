@@ -62,7 +62,7 @@ func GetProjects(c *gin.Context) {
 	offset := (page - 1) * limit
 	repositories.Context.Preload("Source").Preload("Target").Limit(limit).Offset(offset).Find(&projects)
 	repositories.Context.Model(&models.Project{}).Count(&total)
-	var projectResponses []schemas.ProjectResponse = []schemas.ProjectResponse{}
+	var projectResponses = []schemas.ProjectResponse{}
 
 	for _, project := range projects {
 		projectResponses = append(projectResponses, mappers.ProjectToResponse(project))

@@ -268,7 +268,11 @@ func (p PostgreSQLDDL) DumpDatabaseSQL(connection models.DBConnection, db *gorm.
 		return "", fmt.Errorf("failed to get pg_dump path: %v", err)
 	}
 
-	os.Setenv("PGPASSWORD", pass) // Set the password for pg_dump
+	err = os.Setenv("PGPASSWORD", pass) // Set the password for pg_dump
+	if err != nil {
+		return "", fmt.Errorf("failed to set PGPASSWORD: %v", err)
+	}
+
 	cmd := exec.Command(pgDumpPath,
 		"-h", connection.Host,
 		"-U", connection.User,

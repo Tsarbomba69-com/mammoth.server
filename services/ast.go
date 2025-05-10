@@ -636,7 +636,17 @@ func GetForeignKeys(db *gorm.DB, tableName string) ([]models.ForeignKeyInfo, err
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			if err == nil {
+				err = fmt.Errorf("rows close error: %w", closeErr)
+			} else {
+				err = fmt.Errorf("%v, rows close error: %w", err, closeErr)
+			}
+		}
+	}()
 
 	constraintMap := map[string]*models.ForeignKeyInfo{}
 

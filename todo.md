@@ -5,7 +5,8 @@
 - [x] Order of operations regarding dropping tables.
 - [x] Table generation script with schema info.
 - [ ] Add auto increment field modifier.
-- [ ] Add schema name for the referenced table in foreign key constraint.
+- [x] Add schema name for the referenced table in foreign key constraint.
+- [ ] Make code CI compliant.
 
 ## Features
 

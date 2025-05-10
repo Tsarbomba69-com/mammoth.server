@@ -16,7 +16,7 @@ type MigrationScript struct {
 // Generate creates migration scripts from schema differences
 func Generate(dialect string, diff models.SchemaDiff) MigrationScript {
 	var upSQL, downSQL strings.Builder
-	var gen ddl.DDL = ddl.NewDDL(dialect) // Change to your desired dialect
+	var gen = ddl.NewDDL(dialect) // Change to your desired dialect
 
 	// Create schema if it doesn't exist
 	for _, schema := range diff.SchemasAdded {

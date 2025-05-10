@@ -69,7 +69,7 @@ func (p *Project) ConnectForProject() (*gorm.DB, *gorm.DB, error) {
 }
 
 func (p *Project) GetDialect(db *gorm.DB) string {
-	dialect := db.Dialector.Name()
+	dialect := db.Name()
 
 	// Normalize dialect names
 	switch {
