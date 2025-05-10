@@ -122,7 +122,7 @@ func (p PostgreSQLDDL) AlterTableSQL(tableDiff models.TableDiff) string {
 	}
 
 	// Modify foreign key (drop and recreate)
-	for _, change := range tableDiff.ForeignKeyInfoModified {
+	for _, change := range tableDiff.ForeignKeyModified {
 		sql.WriteString(p.DropForeignKeySQL(schemaName, tableDiff.Name, change.Source.Name))
 		sql.WriteString(p.AddForeignKeySQL(schemaName, tableDiff.Name, change.Target))
 	}
@@ -186,7 +186,7 @@ func (p PostgreSQLDDL) RevertAlterTableSQL(tableDiff models.TableDiff) string {
 	return sql.String()
 }
 
-func (p PostgreSQLDDL) CreateIndexSQL(schemaName, tableName string, idx models.IndexInfo) string {
+func (p PostgreSQLDDL) CreateIndexSQL(schemaName, tableName string, idx models.Index) string {
 	if idx.IsPrimary {
 		return "" // Already handled in CREATE TABLE
 	}
@@ -209,7 +209,7 @@ func (p PostgreSQLDDL) CreateIndexSQL(schemaName, tableName string, idx models.I
 		strings.Join(quotedColumns, ", "))
 }
 
-func (p PostgreSQLDDL) DropIndexSQL(schemaName, tableName string, idx models.IndexInfo) string {
+func (p PostgreSQLDDL) DropIndexSQL(schemaName, tableName string, idx models.Index) string {
 	if idx.IsPrimary {
 		return fmt.Sprintf("ALTER TABLE %s.%s DROP CONSTRAINT %s;\n",
 			quoteIdentifier(schemaName),
@@ -235,7 +235,7 @@ func joinIdentifiers(cols []string) string {
 	return strings.Join(parts, ", ")
 }
 
-func (p PostgreSQLDDL) AddForeignKeySQL(schemaName, table string, fk models.ForeignKeyInfo) string {
+func (p PostgreSQLDDL) AddForeignKeySQL(schemaName, table string, fk models.ForeignKey) string {
 	cols := joinIdentifiers(fk.Columns)
 	refCols := joinIdentifiers(fk.ReferencedColumns)
 

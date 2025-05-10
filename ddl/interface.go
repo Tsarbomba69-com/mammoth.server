@@ -10,9 +10,9 @@ type DDL interface {
 	CreateTableSQL(tableDiff models.TableDiff) string
 	AlterTableSQL(tableDiff models.TableDiff) string
 	RevertAlterTableSQL(tableDiff models.TableDiff) string
-	CreateIndexSQL(schemaName, tableName string, idx models.IndexInfo) string
-	DropIndexSQL(schemaName, tableName string, idx models.IndexInfo) string
-	AddForeignKeySQL(schemaName, tableName string, fk models.ForeignKeyInfo) string
+	CreateIndexSQL(schemaName, tableName string, idx models.Index) string
+	DropIndexSQL(schemaName, tableName string, idx models.Index) string
+	AddForeignKeySQL(schemaName, tableName string, fk models.ForeignKey) string
 	DropForeignKeySQL(schemaName, tableName, constraint string) string
 	DropTableSQL(schemaName, tableName string) string
 	DumpDatabaseSQL(connection models.DBConnection, db *gorm.DB) (string, error)

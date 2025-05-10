@@ -99,6 +99,36 @@ var dialectQueries = map[string]models.QuerySet{
 				tc.constraint_name,
 				kcu.ordinal_position
 		`,
+		Sequence: `
+            SELECT 
+                sequence_name AS name,
+                sequence_schema AS schema_name,
+                start_value,
+                minimum_value,
+                maximum_value,
+                increment,
+                cycle_option AS is_cyclic
+            FROM information_schema.sequences
+            WHERE sequence_schema = current_schema()
+            ORDER BY sequence_name
+        `,
+		SequenceOwnership: `
+            SELECT
+                seq_ns.nspname AS sequence_schema,
+                seq.relname AS sequence_name,
+                tab_ns.nspname AS table_schema,
+                tab.relname AS table_name,
+                attr.attname AS column_name
+            FROM pg_depend dep
+            JOIN pg_class seq ON seq.oid = dep.objid
+            JOIN pg_namespace seq_ns ON seq.relnamespace = seq_ns.oid
+            JOIN pg_class tab ON tab.oid = dep.refobjid
+            JOIN pg_namespace tab_ns ON tab.relnamespace = tab_ns.oid
+            JOIN pg_attribute attr ON attr.attrelid = tab.oid AND attr.attnum = dep.refobjsubid
+            WHERE dep.deptype = 'a'
+            AND seq.relkind = 'S'
+            AND seq_ns.nspname = current_schema()
+        `,
 	},
 	"sqlite": {
 		Schema: `
@@ -161,6 +191,17 @@ var dialectQueries = map[string]models.QuerySet{
 			WHERE m.type = 'table'
 			ORDER BY m.name, fk.id, fk.seq
 		`,
+		Sequence: `
+            SELECT NULL AS name, NULL AS schema_name, NULL AS start_value,
+                   NULL AS minimum_value, NULL AS maximum_value, NULL AS increment,
+                   NULL AS is_cyclic, NULL AS last_value
+            LIMIT 0
+        `, // SQLite doesn't support sequences
+		SequenceOwnership: `
+            SELECT NULL AS sequence_schema, NULL AS sequence_name,
+                   NULL AS table_schema, NULL AS table_name, NULL AS column_name
+            LIMIT 0
+        `,
 	},
 	"mysql": {
 		Schema: `
@@ -212,6 +253,29 @@ var dialectQueries = map[string]models.QuerySet{
 			AND referenced_table_name IS NOT NULL
 			ORDER BY table_name, constraint_name, ordinal_position
 		`,
+		Sequence: `
+            SELECT 
+                sequence_name AS name,
+                sequence_schema AS schema_name,
+                start_value,
+                minimum_value,
+                maximum_value,
+                increment,
+                cycle_option AS is_cyclic,
+                last_value
+            FROM information_schema.sequences
+            WHERE sequence_schema = DATABASE()
+            ORDER BY sequence_name
+        `,
+		SequenceOwnership: `
+            SELECT
+                NULL AS sequence_schema,
+                NULL AS sequence_name,
+                NULL AS table_schema,
+                NULL AS table_name,
+                NULL AS column_name
+            LIMIT 0
+        `, // MySQL doesn't track sequence ownership like PostgreSQL
 	},
 }
 
@@ -219,10 +283,11 @@ func DumpSchemaAST(db *gorm.DB) ([]models.Schema, error) {
 	// Use channels for parallel execution
 	schemasChan := make(chan []models.Schema)
 	tablesChan := make(chan map[string][]struct{ Name, SchemaName string })
-	columnsChan := make(chan map[string][]models.ColumnInfo)
-	indexesChan := make(chan map[string][]models.IndexInfo)
-	fksChan := make(chan map[string][]models.ForeignKeyInfo)
-	errChan := make(chan error, 5)
+	columnsChan := make(chan map[string][]models.Column)
+	indexesChan := make(chan map[string][]models.Index)
+	fksChan := make(chan map[string][]models.ForeignKey)
+	seqsChan := make(chan []models.Sequence)
+	errChan := make(chan error, 6)
 
 	// Launch goroutines for each metadata type
 	go func() {
@@ -270,14 +335,24 @@ func DumpSchemaAST(db *gorm.DB) ([]models.Schema, error) {
 		fksChan <- fks
 	}()
 
+	go func() {
+		seqs, err := getAllSequence(db)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		seqsChan <- seqs
+	}()
+
 	// Collect results
 	var schemas []models.Schema
 	var tables map[string][]struct{ Name, SchemaName string }
-	var columnsByTable map[string][]models.ColumnInfo
-	var indexesByTable map[string][]models.IndexInfo
-	var fksByTable map[string][]models.ForeignKeyInfo
+	var columnsByTable map[string][]models.Column
+	var indexesByTable map[string][]models.Index
+	var fksByTable map[string][]models.ForeignKey
+	var sequences []models.Sequence
 
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 6; i++ {
 		select {
 		case err := <-errChan:
 			return nil, err
@@ -291,12 +366,15 @@ func DumpSchemaAST(db *gorm.DB) ([]models.Schema, error) {
 			tables = ts
 		case ss := <-schemasChan:
 			schemas = ss
+		case seqs := <-seqsChan:
+			sequences = seqs
 		}
 	}
 
 	// Build schemas
 	for _, schema := range schemas {
 		schema.Tables = make([]models.TableSchema, 0, len(tables[schema.Name]))
+		schema.Sequences = sequences
 		for _, table := range tables[schema.Name] {
 			schema.Tables = append(schema.Tables, models.TableSchema{
 				Name:        table.Name,
@@ -310,6 +388,62 @@ func DumpSchemaAST(db *gorm.DB) ([]models.Schema, error) {
 	}
 
 	return schemas, nil
+}
+
+func getAllSequence(db *gorm.DB) ([]models.Sequence, error) {
+	var sequences []models.Sequence
+
+	qs, err := getQuerySet(db)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := db.Raw(qs.Sequence).Rows()
+	if err != nil {
+		return nil, fmt.Errorf("failed to query sequences: %w", err)
+	}
+
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			if err == nil {
+				err = fmt.Errorf("rows close error: %w", closeErr)
+			} else {
+				err = fmt.Errorf("%v, rows close error: %w", err, closeErr)
+			}
+		}
+	}()
+
+	for rows.Next() {
+		var seq models.Sequence
+		var isCyclic string // Some dialects return string (YES/NO) for cyclic flag
+
+		if err := rows.Scan(
+			&seq.Name,
+			&seq.SchemaName,
+			&seq.StartValue,
+			&seq.MinValue,
+			&seq.MaxValue,
+			&seq.Increment,
+			&isCyclic,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan sequence row: %w", err)
+		}
+
+		// Normalize cyclic flag
+		seq.IsCyclic = isCyclic == "YES" || isCyclic == "1" || isCyclic == "true"
+		sequences = append(sequences, seq)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error after reading sequence rows: %w", err)
+	}
+
+	// if qs.SequenceOwnership != "" {
+	// 	panic("Sequence ownership query not implemented for this dialect")
+	// }
+
+	return sequences, nil
 }
 
 func getAllSchemas(db *gorm.DB) ([]models.Schema, error) {
@@ -365,11 +499,17 @@ func CompareSchemas(source, target []models.Schema) models.SchemaDiff {
 	targetSchemas := make(map[string]models.Schema)
 	sourceTables := make(map[string]models.TableSchema)
 	targetTables := make(map[string]models.TableSchema)
+	sourceSeqs := make(map[string]models.Sequence)
+	targetSeqs := make(map[string]models.Sequence)
 
 	for _, schema := range source {
 		sourceSchemas[schema.Name] = schema
 		for _, table := range schema.Tables {
 			sourceTables[table.Name] = table
+		}
+
+		for _, table := range schema.Sequences {
+			sourceSeqs[table.Name] = table
 		}
 	}
 
@@ -377,6 +517,10 @@ func CompareSchemas(source, target []models.Schema) models.SchemaDiff {
 		targetSchemas[schema.Name] = schema
 		for _, table := range schema.Tables {
 			targetTables[table.Name] = table
+		}
+
+		for _, table := range schema.Sequences {
+			targetSeqs[table.Name] = table
 		}
 	}
 
@@ -390,6 +534,8 @@ func CompareSchemas(source, target []models.Schema) models.SchemaDiff {
 	for name, sourceSchema := range sourceSchemas {
 		if _, exists := targetSchemas[name]; !exists {
 			diff.SchemasRemoved = append(diff.SchemasRemoved, sourceSchema.Name)
+		} else {
+			diff.SchemasSame = append(diff.SchemasSame, name)
 		}
 	}
 
@@ -397,11 +543,11 @@ func CompareSchemas(source, target []models.Schema) models.SchemaDiff {
 	for name, targetTable := range targetTables {
 		if _, exists := sourceTables[name]; !exists {
 			diff.TablesAdded = append(diff.TablesAdded, models.TableDiff{
-				Name:                name,
-				SchemaName:          targetTable.SchemaName,
-				ColumnsAdded:        targetTable.Columns,
-				IndexesAdded:        targetTable.Indexes,
-				ForeignKeyInfoAdded: targetTable.ForeignKeys,
+				Name:            name,
+				SchemaName:      targetTable.SchemaName,
+				ColumnsAdded:    targetTable.Columns,
+				IndexesAdded:    targetTable.Indexes,
+				ForeignKeyAdded: targetTable.ForeignKeys,
 			})
 		}
 	}
@@ -409,11 +555,11 @@ func CompareSchemas(source, target []models.Schema) models.SchemaDiff {
 	for name, sourceTable := range sourceTables {
 		if _, exists := targetTables[name]; !exists {
 			diff.TablesRemoved = append(diff.TablesRemoved, models.TableDiff{
-				Name:                name,
-				SchemaName:          sourceTable.SchemaName,
-				ColumnsAdded:        sourceTable.Columns,
-				IndexesAdded:        sourceTable.Indexes,
-				ForeignKeyInfoAdded: sourceTable.ForeignKeys,
+				Name:            name,
+				SchemaName:      sourceTable.SchemaName,
+				ColumnsAdded:    sourceTable.Columns,
+				IndexesAdded:    sourceTable.Indexes,
+				ForeignKeyAdded: sourceTable.ForeignKeys,
 			})
 		}
 	}
@@ -425,10 +571,35 @@ func CompareSchemas(source, target []models.Schema) models.SchemaDiff {
 			if len(tableDiff.ColumnsAdded) > 0 || len(tableDiff.ColumnsRemoved) > 0 ||
 				len(tableDiff.ColumnsModified) > 0 || len(tableDiff.IndexesAdded) > 0 ||
 				len(tableDiff.IndexesRemoved) > 0 || len(tableDiff.IndexesModified) > 0 ||
-				len(tableDiff.ForeignKeyInfoAdded) > 0 || len(tableDiff.ForeignKeyInfoModified) > 0 {
+				len(tableDiff.ForeignKeyAdded) > 0 || len(tableDiff.ForeignKeyModified) > 0 {
 				diff.TablesModified = append(diff.TablesModified, tableDiff)
 			} else {
 				diff.TablesSame = append(diff.TablesSame, name)
+			}
+		}
+	}
+
+	// Find added and removed schemas
+	for name, targetSeq := range targetSeqs {
+		if _, exists := sourceSeqs[name]; !exists {
+			diff.SequencesAdded = append(diff.SequencesAdded, targetSeq)
+		}
+	}
+
+	for name, sourceSeq := range sourceSeqs {
+		if _, exists := targetSeqs[name]; !exists {
+			diff.SequencesRemoved = append(diff.SequencesRemoved, sourceSeq)
+		}
+	}
+
+	// Compare sequences that exist in both schemas
+	for name, sourceSeq := range sourceSeqs {
+		if targetSeq, exists := targetSeqs[name]; exists {
+			var seqDiff = compareSequences(sourceSeq, targetSeq)
+			if seqDiff.ChangedAttr != nil {
+				diff.SequencesModified = append(diff.SequencesModified, seqDiff)
+			} else {
+				diff.SequencesSame = append(diff.SequencesSame, name)
 			}
 		}
 	}
@@ -438,7 +609,45 @@ func CompareSchemas(source, target []models.Schema) models.SchemaDiff {
 	diff.Summary["tables_removed"] = len(diff.TablesRemoved)
 	diff.Summary["tables_modified"] = len(diff.TablesModified)
 	diff.Summary["tables_same"] = len(diff.TablesSame)
+	diff.Summary["schemas_added"] = len(diff.SchemasAdded)
+	diff.Summary["schemas_removed"] = len(diff.SchemasRemoved)
+	diff.Summary["sequences_added"] = len(diff.SequencesAdded)
+	diff.Summary["sequences_removed"] = len(diff.SequencesRemoved)
+	diff.Summary["sequences_modified"] = len(diff.SequencesModified)
+	diff.Summary["sequences_same"] = len(diff.SequencesSame)
 	return diff
+}
+
+func compareSequences(source, target models.Sequence) models.SequenceChange {
+	// Convert sequences to maps for easier comparison
+
+	if target.Name == source.Name {
+		if !reflect.DeepEqual(source, target) {
+			var changed []string
+			if source.Increment != target.Increment {
+				changed = append(changed, "increment")
+			}
+			if source.IsCyclic != target.IsCyclic {
+				changed = append(changed, "is_cyclic")
+			}
+			if source.MaxValue != target.MaxValue {
+				changed = append(changed, "max_value")
+			}
+			if source.MinValue != target.MinValue {
+				changed = append(changed, "min_value")
+			}
+
+			return models.SequenceChange{
+				Name:        target.Name,
+				SchemaName:  target.SchemaName,
+				Source:      source,
+				Target:      target,
+				ChangedAttr: changed,
+			}
+		}
+	}
+
+	return models.SequenceChange{}
 }
 
 func compareTables(source, target models.TableSchema) models.TableDiff {
@@ -447,8 +656,8 @@ func compareTables(source, target models.TableSchema) models.TableDiff {
 	diff.SchemaName = source.SchemaName
 
 	// Compare columns
-	sourceColumns := make(map[string]models.ColumnInfo)
-	targetColumns := make(map[string]models.ColumnInfo)
+	sourceColumns := make(map[string]models.Column)
+	targetColumns := make(map[string]models.Column)
 
 	for _, col := range source.Columns {
 		sourceColumns[col.Name] = col
@@ -502,8 +711,8 @@ func compareTables(source, target models.TableSchema) models.TableDiff {
 	}
 
 	// Compare indexes
-	sourceIndexes := make(map[string]models.IndexInfo)
-	targetIndexes := make(map[string]models.IndexInfo)
+	sourceIndexes := make(map[string]models.Index)
+	targetIndexes := make(map[string]models.Index)
 
 	for _, idx := range source.Indexes {
 		sourceIndexes[idx.Name] = idx
@@ -554,8 +763,8 @@ func compareTables(source, target models.TableSchema) models.TableDiff {
 	}
 
 	// Compare ForeignKeys
-	sourceForeignKeys := make(map[string]models.ForeignKeyInfo)
-	targetForeignKeys := make(map[string]models.ForeignKeyInfo)
+	sourceForeignKeys := make(map[string]models.ForeignKey)
+	targetForeignKeys := make(map[string]models.ForeignKey)
 
 	for _, idx := range source.ForeignKeys {
 		sourceForeignKeys[idx.Name] = idx
@@ -568,13 +777,13 @@ func compareTables(source, target models.TableSchema) models.TableDiff {
 	// Find added and removed ForeignKeys
 	for name, idx := range targetForeignKeys {
 		if _, exists := sourceForeignKeys[name]; !exists {
-			diff.ForeignKeyInfoAdded = append(diff.ForeignKeyInfoAdded, idx)
+			diff.ForeignKeyAdded = append(diff.ForeignKeyAdded, idx)
 		}
 	}
 
 	for name, idx := range sourceForeignKeys {
 		if _, exists := targetForeignKeys[name]; !exists {
-			diff.ForeignKeyInfoRemoved = append(diff.ForeignKeyInfoRemoved, idx)
+			diff.ForeignKeyRemoved = append(diff.ForeignKeyRemoved, idx)
 		}
 	}
 
@@ -599,14 +808,14 @@ func compareTables(source, target models.TableSchema) models.TableDiff {
 					changed = append(changed, "referenced_table")
 				}
 
-				diff.ForeignKeyInfoModified = append(diff.ForeignKeyInfoModified, models.ForeignKeyChange{
+				diff.ForeignKeyModified = append(diff.ForeignKeyModified, models.ForeignKeyChange{
 					Name:        name,
 					Source:      sourceFk,
 					Target:      targetFk,
 					ChangedAttr: changed,
 				})
 			} else {
-				diff.ForeignKeysInfoSame = append(diff.ForeignKeysInfoSame, sourceFk)
+				diff.ForeignKeysSame = append(diff.ForeignKeysSame, sourceFk)
 			}
 		}
 	}
@@ -626,7 +835,7 @@ func stringSlicesEqual(a, b []string) bool {
 	return true
 }
 
-func GetForeignKeys(db *gorm.DB, tableName string) ([]models.ForeignKeyInfo, error) {
+func GetForeignKeys(db *gorm.DB, tableName string) ([]models.ForeignKey, error) {
 	qs, err := getQuerySet(db)
 	if err != nil {
 		return nil, err
@@ -648,7 +857,7 @@ func GetForeignKeys(db *gorm.DB, tableName string) ([]models.ForeignKeyInfo, err
 		}
 	}()
 
-	constraintMap := map[string]*models.ForeignKeyInfo{}
+	constraintMap := map[string]*models.ForeignKey{}
 
 	for rows.Next() {
 		var name, column, refTable, refColumn, onUpdate, onDelete string
@@ -657,7 +866,7 @@ func GetForeignKeys(db *gorm.DB, tableName string) ([]models.ForeignKeyInfo, err
 		}
 
 		if _, exists := constraintMap[name]; !exists {
-			constraintMap[name] = &models.ForeignKeyInfo{
+			constraintMap[name] = &models.ForeignKey{
 				Name:            name,
 				ReferencedTable: refTable,
 				OnUpdate:        onUpdate,
@@ -669,7 +878,7 @@ func GetForeignKeys(db *gorm.DB, tableName string) ([]models.ForeignKeyInfo, err
 		info.ReferencedColumns = append(info.ReferencedColumns, refColumn)
 	}
 
-	var result []models.ForeignKeyInfo
+	var result []models.ForeignKey
 	for _, fk := range constraintMap {
 		result = append(result, *fk)
 	}
@@ -677,7 +886,7 @@ func GetForeignKeys(db *gorm.DB, tableName string) ([]models.ForeignKeyInfo, err
 	return result, nil
 }
 
-func getAllColumns(db *gorm.DB) (map[string][]models.ColumnInfo, error) {
+func getAllColumns(db *gorm.DB) (map[string][]models.Column, error) {
 	qs, err := getQuerySet(db)
 	if err != nil {
 		return nil, err
@@ -696,14 +905,14 @@ func getAllColumns(db *gorm.DB) (map[string][]models.ColumnInfo, error) {
 		return nil, fmt.Errorf("failed to get all columns: %v", err)
 	}
 
-	result := make(map[string][]models.ColumnInfo)
+	result := make(map[string][]models.Column)
 	for _, c := range columns {
 		defaultValue := ""
 		if c.Default != nil {
 			defaultValue = *c.Default
 		}
 
-		result[c.TableName] = append(result[c.TableName], models.ColumnInfo{
+		result[c.TableName] = append(result[c.TableName], models.Column{
 			Name:       c.ColumnName,
 			DataType:   c.DataType,
 			IsNullable: c.IsNullable == "YES",
@@ -735,7 +944,7 @@ func getQuerySet(db *gorm.DB) (models.QuerySet, error) {
 	return qs, nil
 }
 
-func getAllIndexes(db *gorm.DB) (map[string][]models.IndexInfo, error) {
+func getAllIndexes(db *gorm.DB) (map[string][]models.Index, error) {
 	qs, err := getQuerySet(db)
 	if err != nil {
 		return nil, err
@@ -753,16 +962,16 @@ func getAllIndexes(db *gorm.DB) (map[string][]models.IndexInfo, error) {
 		return nil, fmt.Errorf("failed to get all indexes: %v", err)
 	}
 
-	result := make(map[string][]models.IndexInfo)
-	indexMap := make(map[string]map[string]*models.IndexInfo)
+	result := make(map[string][]models.Index)
+	indexMap := make(map[string]map[string]*models.Index)
 
 	for _, idx := range indexes {
 		if _, exists := indexMap[idx.TableName]; !exists {
-			indexMap[idx.TableName] = make(map[string]*models.IndexInfo)
+			indexMap[idx.TableName] = make(map[string]*models.Index)
 		}
 
 		if _, exists := indexMap[idx.TableName][idx.IndexName]; !exists {
-			indexMap[idx.TableName][idx.IndexName] = &models.IndexInfo{
+			indexMap[idx.TableName][idx.IndexName] = &models.Index{
 				Name:      idx.IndexName,
 				IsUnique:  idx.IsUnique,
 				IsPrimary: idx.IsPrimary,
@@ -784,7 +993,7 @@ func getAllIndexes(db *gorm.DB) (map[string][]models.IndexInfo, error) {
 	return result, nil
 }
 
-func getAllForeignKeys(db *gorm.DB) (map[string][]models.ForeignKeyInfo, error) {
+func getAllForeignKeys(db *gorm.DB) (map[string][]models.ForeignKey, error) {
 	qs, err := getQuerySet(db)
 	if err != nil {
 		return nil, err
@@ -804,16 +1013,16 @@ func getAllForeignKeys(db *gorm.DB) (map[string][]models.ForeignKeyInfo, error) 
 		return nil, fmt.Errorf("failed to get all foreign keys: %v", err)
 	}
 
-	result := make(map[string][]models.ForeignKeyInfo)
-	fkMap := make(map[string]map[string]*models.ForeignKeyInfo)
+	result := make(map[string][]models.ForeignKey)
+	fkMap := make(map[string]map[string]*models.ForeignKey)
 
 	for _, fk := range fks {
 		if _, exists := fkMap[fk.TableName]; !exists {
-			fkMap[fk.TableName] = make(map[string]*models.ForeignKeyInfo)
+			fkMap[fk.TableName] = make(map[string]*models.ForeignKey)
 		}
 
 		if _, exists := fkMap[fk.TableName][fk.ConstraintName]; !exists {
-			fkMap[fk.TableName][fk.ConstraintName] = &models.ForeignKeyInfo{
+			fkMap[fk.TableName][fk.ConstraintName] = &models.ForeignKey{
 				Name:            fk.ConstraintName,
 				ReferencedTable: fk.ForeignTable,
 				OnDelete:        fk.OnDelete,

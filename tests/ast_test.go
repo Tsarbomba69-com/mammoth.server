@@ -7,6 +7,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/Tsarbomba69-com/mammoth.server/services"
+	"github.com/Tsarbomba69-com/mammoth.server/tests/mocks"
 )
 
 func TestCompareSchemas(t *testing.T) {
@@ -146,6 +147,35 @@ func TestCompareSchemas(t *testing.T) {
 		assert.Equal(t, 0, diff.Summary["tables_removed"])
 		assert.Equal(t, 1, diff.Summary["tables_modified"]) // posts table
 		assert.Equal(t, "posts", diff.TablesModified[0].Name)
-		assert.Equal(t, 1, len(diff.TablesModified[0].ForeignKeyInfoAdded))
+		assert.Equal(t, 1, len(diff.TablesModified[0].ForeignKeyAdded))
+	})
+
+	t.Run("identical sequences", func(t *testing.T) {
+		// Arrange
+		source := mocks.IdenticalSourceSchema
+		target := mocks.IdenticalTargetSchema
+		// Act
+		diff := services.CompareSchemas(source, target)
+		// Assert
+		// 1. Verify no sequences were added, removed, or modified
+		assert.Empty(t, diff.SequencesAdded, "Expected no added sequences")
+		assert.Empty(t, diff.SequencesRemoved, "Expected no removed sequences")
+		assert.Empty(t, diff.SequencesModified, "Expected no modified sequences")
+
+		// 2. Verify the identical sequence is marked as same
+		assert.Len(t, diff.SequencesSame, 1, "Expected 1 sequence to be marked as same")
+		assert.Contains(t, diff.SequencesSame, "seq1", "Expected seq1 to be in SequencesSame")
+
+		// 3. Verify summary counts
+		assert.Equal(t, 1, diff.Summary["sequences_same"], "Expected summary to show 1 same sequence")
+		assert.Equal(t, 0, diff.Summary["sequences_added"], "Expected summary to show 0 added sequences")
+		assert.Equal(t, 0, diff.Summary["sequences_removed"], "Expected summary to show 0 removed sequences")
+		assert.Equal(t, 0, diff.Summary["sequences_modified"], "Expected summary to show 0 modified sequences")
+
+		// 4. Verify no schema-level changes
+		assert.Empty(t, diff.SchemasAdded, "Expected no schemas added")
+		assert.Empty(t, diff.SchemasRemoved, "Expected no schemas removed")
+		assert.Len(t, diff.SchemasSame, 1, "Expected 1 schema to be same")
+		assert.Contains(t, diff.SchemasSame, "public", "Expected public schema to be same")
 	})
 }

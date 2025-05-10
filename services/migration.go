@@ -29,7 +29,7 @@ func Generate(dialect string, diff models.SchemaDiff) MigrationScript {
 	}
 
 	for _, table := range diff.TablesAdded {
-		for _, fk := range table.ForeignKeyInfoAdded {
+		for _, fk := range table.ForeignKeyAdded {
 			upSQL.WriteString(gen.AddForeignKeySQL(table.SchemaName, table.Name, fk))
 			downSQL.WriteString(gen.DropForeignKeySQL(table.SchemaName, table.Name, fk.Name))
 		}
@@ -59,7 +59,7 @@ func Generate(dialect string, diff models.SchemaDiff) MigrationScript {
 	}
 
 	for _, table := range diff.TablesRemoved {
-		for _, fk := range table.ForeignKeyInfoAdded {
+		for _, fk := range table.ForeignKeyAdded {
 			downSQL.WriteString(gen.AddForeignKeySQL(table.SchemaName, table.Name, fk))
 			upSQL.WriteString(gen.DropForeignKeySQL(table.SchemaName, table.Name, fk.Name))
 		}
