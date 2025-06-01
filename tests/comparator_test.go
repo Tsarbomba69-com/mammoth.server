@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
 
+	"github.com/Tsarbomba69-com/mammoth.server/models"
 	"github.com/Tsarbomba69-com/mammoth.server/services"
 	"github.com/Tsarbomba69-com/mammoth.server/tests/mocks"
 )
@@ -177,5 +178,38 @@ func TestCompareSchemas(t *testing.T) {
 		assert.Empty(t, diff.SchemasRemoved, "Expected no schemas removed")
 		assert.Len(t, diff.SchemasSame, 1, "Expected 1 schema to be same")
 		assert.Contains(t, diff.SchemasSame, "public", "Expected public schema to be same")
+	})
+
+	t.Run("added sequence", func(t *testing.T) {
+		// Arrange
+		source := []models.Schema{{
+			Name:      "public",
+			Sequences: []models.Sequence{},
+		}}
+		target := []models.Schema{{
+			Name: "public",
+			Sequences: []models.Sequence{{
+				Name:       "seq1",
+				SchemaName: "public",
+				StartValue: 1,
+				Increment:  1,
+			}},
+		}}
+
+		// Act
+		diff := services.CompareSchemas(source, target)
+
+		// Assert
+		assert.Empty(t, diff.SequencesRemoved)
+		assert.Empty(t, diff.SequencesModified)
+		assert.Empty(t, diff.SequencesSame)
+
+		assert.Len(t, diff.SequencesAdded, 1)
+		assert.Equal(t, "seq1", diff.SequencesAdded[0].Name)
+
+		assert.Equal(t, 1, diff.Summary["sequences_added"])
+		assert.Equal(t, 0, diff.Summary["sequences_removed"])
+		assert.Equal(t, 0, diff.Summary["sequences_modified"])
+		assert.Equal(t, 0, diff.Summary["sequences_same"])
 	})
 }

@@ -28,6 +28,12 @@ func Generate(dialect string, diff models.SchemaDiff) MigrationScript {
 		upSQL.WriteString(gen.CreateTableSQL(table))
 	}
 
+	// Create sequences objects
+	for _, seq := range diff.SequencesAdded {
+		upSQL.WriteString(gen.CreateSequenceSQL(seq))
+		downSQL.WriteString(gen.DropSequenceSQL(seq.SchemaName, seq.Name))
+	}
+
 	for _, table := range diff.TablesAdded {
 		for _, fk := range table.ForeignKeyAdded {
 			upSQL.WriteString(gen.AddForeignKeySQL(table.SchemaName, table.Name, fk))

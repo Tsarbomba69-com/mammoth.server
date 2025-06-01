@@ -17,6 +17,8 @@ type DDL interface {
 	DropTableSQL(schemaName, tableName string) string
 	DumpDatabaseSQL(connection models.DBConnection, db *gorm.DB) (string, error)
 	DropSchemaSQL(schema string) string
+	DropSequenceSQL(schemaName string, name string) string
+	CreateSequenceSQL(seq models.Sequence) string
 }
 
 func NewDDL(dialect string) DDL {

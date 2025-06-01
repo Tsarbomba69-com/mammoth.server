@@ -7,10 +7,11 @@
 - [ ] Add auto increment field modifier.
 - [x] Add schema name for the referenced table in foreign key constraint.
 - [x] Make code CI compliant.
+- [ ] Dump schema info for all schemas.
 
 ## Features
 
 - [ ] SQLite support.
 - [x] Backup endpoint.
 - [x] Generate schemas.
-- [ ] Generate sequence object.
+- [x] Generate sequence object.

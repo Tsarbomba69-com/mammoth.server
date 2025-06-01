@@ -289,6 +289,51 @@ func (p PostgreSQLDDL) DumpDatabaseSQL(connection models.DBConnection, db *gorm.
 	return out.String(), nil
 }
 
+func (p PostgreSQLDDL) CreateSequenceSQL(seq models.Sequence) string {
+	var parts []string
+
+	// Basic sequence creation
+	parts = append(parts, fmt.Sprintf("CREATE SEQUENCE %s.%s",
+		quoteIdentifier(seq.SchemaName),
+		quoteIdentifier(seq.Name)))
+
+	// Add sequence parameters if they are set
+	if seq.Increment != 0 {
+		parts = append(parts, fmt.Sprintf("INCREMENT BY %d", seq.Increment))
+	}
+	if seq.MinValue != 0 {
+		parts = append(parts, fmt.Sprintf("MINVALUE %d", seq.MinValue))
+	}
+	if seq.MaxValue != 0 {
+		parts = append(parts, fmt.Sprintf("MAXVALUE %d", seq.MaxValue))
+	}
+	if seq.StartValue != 0 {
+		parts = append(parts, fmt.Sprintf("START WITH %d", seq.StartValue))
+	}
+	if seq.IsCyclic {
+		parts = append(parts, "CYCLE;\n")
+	} else {
+		parts = append(parts, "NO CYCLE;\n")
+	}
+
+	if seq.OwnedByTable != "" && seq.OwnedByColumn != "" {
+		parts = append(parts,
+			fmt.Sprintf(
+				"ALTER SEQUENCE %s.%s OWNED BY %s.%s;\n",
+				quoteIdentifier(seq.SchemaName),
+				quoteIdentifier(seq.Name),
+				quoteIdentifier(seq.OwnedByTable),
+				quoteIdentifier(seq.OwnedByColumn),
+			))
+	}
+
+	return strings.Join(parts, " ")
+}
+
+func (p PostgreSQLDDL) DropSequenceSQL(schemaName string, name string) string {
+	return fmt.Sprintf("DROP SEQUENCE IF EXISTS %s.%s;\n", quoteIdentifier(schemaName), quoteIdentifier(name))
+}
+
 func getPgDumpPath() (string, error) {
 	// Check the OS using runtime.GOOS
 	switch runtime.GOOS {

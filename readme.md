@@ -35,3 +35,7 @@ go build -o mammoth
 ## 📚 Further Documentation
 
 For a detailed overview of the system's design, architecture, and component interactions, please refer to the [Architecture Documentation](./docs/architecture.md).
+
+## 📝 Work in Progress
+
+To see planned features, enhancements, and development priorities, check out the [TODO](./docs/TODO.md) file.
