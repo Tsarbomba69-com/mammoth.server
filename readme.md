@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./assets/Logo.png" alt="Mammoth Server Logo" width="400"/>
+</p>
+
 # 🐘 Mammoth Server
 
 **Mammoth Server** is a lightweight service written in Go for **database schema comparison** and **migration script generation**. Ideal for teams looking to automate schema versioning and evolution with control, security, and ease.
