@@ -107,13 +107,13 @@ func Compare(c *gin.Context) {
 		return
 	}
 
-	sourceSchema, err = services.DumpSchemaAST(source)
+	sourceSchema, err = services.DumpSchema(source)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to dump schema"})
 		return
 	}
 
-	targetSchema, err = services.DumpSchemaAST(target)
+	targetSchema, err = services.DumpSchema(target)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to dump schema"})
 		return

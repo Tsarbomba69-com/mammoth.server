@@ -5,10 +5,6 @@ workspace {
       description "Uses the system to manage database migrations."
     }
 
-    cicd = softwareSystem "CI/CD System" {
-      description "Triggers automatic migrations during deployments."
-    }
-
     system = softwareSystem "Database Migration Service" {
       description "Compares schemas, generates diffs, and executes database migrations."
 
@@ -53,7 +49,6 @@ workspace {
       }
 
       user -> api "Triggers comparison/migration"
-      cicd -> api "Triggers automated migration"
 
       api -> comparator "Request schema comparison"
       comparator -> sourceDb "Reads schema"

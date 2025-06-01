@@ -15,7 +15,7 @@ func SetupSchemaDump(t *testing.T, dbName string, schemaFunc func(*gorm.DB)) []m
 	db := SetupDB(t, dbName, schemaFunc)
 
 	// Dump the schema
-	schemas, err := services.DumpSchemaAST(db)
+	schemas, err := services.DumpSchema(db)
 	if err != nil {
 		t.Fatalf("failed to dump schema: %v", err)
 	}

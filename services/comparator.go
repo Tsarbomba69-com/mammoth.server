@@ -279,7 +279,7 @@ var dialectQueries = map[string]models.QuerySet{
 	},
 }
 
-func DumpSchemaAST(db *gorm.DB) ([]models.Schema, error) {
+func DumpSchema(db *gorm.DB) ([]models.Schema, error) {
 	// Use channels for parallel execution
 	schemasChan := make(chan []models.Schema)
 	tablesChan := make(chan map[string][]struct{ Name, SchemaName string })
