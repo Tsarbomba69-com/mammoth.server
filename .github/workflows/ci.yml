@@ -81,8 +81,9 @@ jobs:
 
       - name: 🏗️ Build an image from Dockerfile
         run: |
+          echo "${{ secrets.ENV_FILE }}" > .env
           docker build -t ${{ env.DOCKER_IMAGE_NAME }}:scan .
-          
+
       - name: 🛡️ Run Dockle
         uses: goodwithtech/dockle-action@main
         with:
