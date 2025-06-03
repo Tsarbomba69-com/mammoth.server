@@ -334,6 +334,59 @@ func (p PostgreSQLDDL) DropSequenceSQL(schemaName string, name string) string {
 	return fmt.Sprintf("DROP SEQUENCE IF EXISTS %s.%s;\n", quoteIdentifier(schemaName), quoteIdentifier(name))
 }
 
+// AlterSequenceSQL generates the SQL to alter a sequence based on the changes detected
+func (p PostgreSQLDDL) AlterSequenceSQL(seqChange models.SequenceChange) string {
+	return alterSequece(seqChange, seqChange.Target)
+}
+
+// RevertAlterSequenceSQL generates the SQL to revert a sequence alteration
+func (p PostgreSQLDDL) RevertAlterSequenceSQL(seqChange models.SequenceChange) string {
+	return alterSequece(seqChange, seqChange.Source)
+}
+
+func alterSequece(seqChange models.SequenceChange, seq models.Sequence) string {
+	var clauses []string
+
+	for _, attr := range seqChange.ChangedAttr {
+		switch attr {
+		case "increment":
+			clauses = append(clauses, fmt.Sprintf("INCREMENT BY %d", seq.Increment))
+		case "start_value":
+			clauses = append(clauses, fmt.Sprintf("START WITH %d", seq.StartValue))
+		case "min_value":
+			clauses = append(clauses, fmt.Sprintf("MINVALUE %d", seq.MinValue))
+		case "max_value":
+			if seq.MaxValue == 0 {
+				clauses = append(clauses, "NO MAXVALUE")
+			} else {
+				clauses = append(clauses, fmt.Sprintf("MAXVALUE %d", seq.MaxValue))
+			}
+		case "is_cyclic":
+			if seq.IsCyclic {
+				clauses = append(clauses, "CYCLE")
+			} else {
+				clauses = append(clauses, "NO CYCLE")
+			}
+		// case "cache":
+		// 	clauses = append(clauses, fmt.Sprintf("CACHE %d", seq.Cache))
+		case "OwnedByTable", "OwnedByColumn":
+			if seq.OwnedByTable != "" && seq.OwnedByColumn != "" {
+				clauses = append(clauses, fmt.Sprintf("OWNED BY \"%s\".\"%s\"",
+					seq.OwnedByTable, seq.OwnedByColumn))
+			} else {
+				clauses = append(clauses, "OWNED BY NONE")
+			}
+		}
+	}
+
+	if len(clauses) == 0 {
+		return ""
+	}
+
+	return fmt.Sprintf("ALTER SEQUENCE \"%s\".\"%s\" %s;\n",
+		seq.SchemaName, seq.Name, strings.Join(clauses, " "))
+}
+
 func getPgDumpPath() (string, error) {
 	// Check the OS using runtime.GOOS
 	switch runtime.GOOS {

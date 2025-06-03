@@ -7,11 +7,11 @@
 - [ ] Add auto increment field modifier.
 - [x] Add schema name for the referenced table in foreign key constraint.
 - [x] Make code CI compliant.
-- [ ] Dump schema info for all schemas.
+- [x] Dump schema info for all schemas.
+- [ ] dockerfile-validation job keeps failing.
 
 ## Features
 
-- [ ] SQLite support.
 - [x] Backup endpoint.
 - [x] Generate schemas.
 - [x] Generate sequence object.

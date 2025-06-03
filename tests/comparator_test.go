@@ -212,4 +212,58 @@ func TestCompareSchemas(t *testing.T) {
 		assert.Equal(t, 0, diff.Summary["sequences_modified"])
 		assert.Equal(t, 0, diff.Summary["sequences_same"])
 	})
+
+	t.Run("altered sequence", func(t *testing.T) {
+		// Arrange
+		source := []models.Schema{{
+			Name: "public",
+			Sequences: []models.Sequence{{
+				Name:       "seq1",
+				SchemaName: "public",
+				StartValue: 1,
+				Increment:  1,
+				MaxValue:   100,
+				MinValue:   1,
+				// Cache:      1,
+				IsCyclic: false,
+			}},
+		}}
+		target := []models.Schema{{
+			Name: "public",
+			Sequences: []models.Sequence{{
+				Name:       "seq1",
+				SchemaName: "public",
+				StartValue: 1,
+				Increment:  2,   // Changed
+				MaxValue:   200, // Changed
+				MinValue:   1,
+				// Cache:      5,    // Changed
+				IsCyclic: true, // Changed
+			}},
+		}}
+
+		// Act
+		diff := services.CompareSchemas(source, target)
+
+		// Assert
+		assert.Empty(t, diff.SequencesAdded)
+		assert.Empty(t, diff.SequencesRemoved)
+		assert.Empty(t, diff.SequencesSame)
+
+		assert.Len(t, diff.SequencesModified, 1)
+		modifiedSeq := diff.SequencesModified[0]
+		assert.Equal(t, "seq1", modifiedSeq.Name)
+
+		// Verify the changes were detected
+		assert.Equal(t, int64(1), modifiedSeq.Source.StartValue)
+		assert.Equal(t, int64(2), modifiedSeq.Target.Increment)
+		assert.Equal(t, int64(200), modifiedSeq.Target.MaxValue)
+		// assert.Equal(t, int64(5), modifiedSeq.Target.Cache)
+		assert.True(t, modifiedSeq.Target.IsCyclic)
+
+		assert.Equal(t, 0, diff.Summary["sequences_added"])
+		assert.Equal(t, 0, diff.Summary["sequences_removed"])
+		assert.Equal(t, 1, diff.Summary["sequences_modified"])
+		assert.Equal(t, 0, diff.Summary["sequences_same"])
+	})
 }

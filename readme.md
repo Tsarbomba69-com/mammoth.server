@@ -23,6 +23,20 @@
 ```bash
 git clone https://github.com/Tsarbomba69-com/mammoth.server.git
 cd mammoth.server
+
+# Create .env file with your configuration
+cat > .env <<EOL
+DB_HOST=localhost
+DB_USER=postgres
+DB_PASSWORD=postgres
+DB_NAME=mammoth
+DB_PORT=5432
+APP_PORT=8080
+ENCRYPTION_KEY=your-encryption-key-that-its-32-characters-long
+EOL
+
+# (Optional) Start the database service
+docker compose -f dev-docker-compose.yml --env-file .env up -d --build
 go build -o mammoth
 ```
 

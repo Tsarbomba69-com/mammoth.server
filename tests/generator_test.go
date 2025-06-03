@@ -234,3 +234,207 @@ DROP SEQUENCE IF EXISTS "app"."seq_two";
 		})
 	}
 }
+
+func TestCompareSchemas_AlteredSequences(t *testing.T) {
+	tests := []struct {
+		name     string
+		source   []models.Schema
+		target   []models.Schema
+		expected struct {
+			modifiedCount int
+			upSQL         string
+			downSQL       string
+		}
+	}{
+		{
+			name: "increment changed",
+			source: []models.Schema{{
+				Name: "public",
+				Sequences: []models.Sequence{{
+					Name:       "seq_user_id",
+					SchemaName: "public",
+					Increment:  1,
+				}},
+			}},
+			target: []models.Schema{{
+				Name: "public",
+				Sequences: []models.Sequence{{
+					Name:       "seq_user_id",
+					SchemaName: "public",
+					Increment:  2,
+				}},
+			}},
+			expected: struct {
+				modifiedCount int
+				upSQL         string
+				downSQL       string
+			}{
+				modifiedCount: 1,
+				upSQL:         "ALTER SEQUENCE \"public\".\"seq_user_id\" INCREMENT BY 2;\n",
+				downSQL:       "ALTER SEQUENCE \"public\".\"seq_user_id\" INCREMENT BY 1;\n",
+			},
+		},
+		{
+			name: "multiple properties changed",
+			source: []models.Schema{{
+				Name: "public",
+				Sequences: []models.Sequence{{
+					Name:       "seq_order_id",
+					SchemaName: "public",
+					StartValue: 1,
+					Increment:  1,
+					MaxValue:   1000,
+					IsCyclic:   false,
+				}},
+			}},
+			target: []models.Schema{{
+				Name: "public",
+				Sequences: []models.Sequence{{
+					Name:       "seq_order_id",
+					SchemaName: "public",
+					StartValue: 100,
+					Increment:  10,
+					MaxValue:   10000,
+					IsCyclic:   true,
+				}},
+			}},
+			expected: struct {
+				modifiedCount int
+				upSQL         string
+				downSQL       string
+			}{
+				modifiedCount: 1,
+				upSQL: `ALTER SEQUENCE "public"."seq_order_id" INCREMENT BY 10 CYCLE MAXVALUE 10000 START WITH 100;
+`,
+				downSQL: `ALTER SEQUENCE "public"."seq_order_id" INCREMENT BY 1 NO CYCLE MAXVALUE 1000 START WITH 1;
+`,
+			},
+		},
+		// {
+		// 	name: "ownership changed",
+		// 	source: []models.Schema{{
+		// 		Name: "public",
+		// 		Sequences: []models.Sequence{{
+		// 			Name:          "seq_product_id",
+		// 			SchemaName:    "public",
+		// 			OwnedByTable:  "products_old",
+		// 			OwnedByColumn: "id",
+		// 		}},
+		// 	}},
+		// 	target: []models.Schema{{
+		// 		Name: "public",
+		// 		Sequences: []models.Sequence{{
+		// 			Name:          "seq_product_id",
+		// 			SchemaName:    "public",
+		// 			OwnedByTable:  "products_new",
+		// 			OwnedByColumn: "product_id",
+		// 		}},
+		// 	}},
+		// 	expected: struct {
+		// 		modifiedCount int
+		// 		upSQL         string
+		// 		downSQL       string
+		// 	}{
+		// 		modifiedCount: 1,
+		// 		upSQL:         "ALTER SEQUENCE \"public\".\"seq_product_id\" OWNED BY \"products_new\".\"product_id\";\n",
+		// 		downSQL:       "ALTER SEQUENCE \"public\".\"seq_product_id\" OWNED BY \"products_old\".\"id\";\n",
+		// 	},
+		// },
+		{
+			name: "multiple sequences altered",
+			source: []models.Schema{
+				{
+					Name: "public",
+					Sequences: []models.Sequence{{
+						Name:       "seq_one",
+						SchemaName: "public",
+						Increment:  1,
+					}},
+				},
+				{
+					Name: "app",
+					Sequences: []models.Sequence{{
+						Name:       "seq_two",
+						SchemaName: "app",
+						MaxValue:   1000,
+					}},
+				},
+			},
+			target: []models.Schema{
+				{
+					Name: "public",
+					Sequences: []models.Sequence{{
+						Name:       "seq_one",
+						SchemaName: "public",
+						Increment:  2,
+					}},
+				},
+				{
+					Name: "app",
+					Sequences: []models.Sequence{{
+						Name:       "seq_two",
+						SchemaName: "app",
+						MaxValue:   2000,
+					}},
+				},
+			},
+			expected: struct {
+				modifiedCount int
+				upSQL         string
+				downSQL       string
+			}{
+				modifiedCount: 2,
+				upSQL:         "ALTER SEQUENCE \"public\".\"seq_one\" INCREMENT BY 2;\nALTER SEQUENCE \"app\".\"seq_two\" MAXVALUE 2000;\n",
+				downSQL:       "ALTER SEQUENCE \"public\".\"seq_one\" INCREMENT BY 1;\nALTER SEQUENCE \"app\".\"seq_two\" MAXVALUE 1000;\n",
+			},
+		},
+		{
+			name: "no changes",
+			source: []models.Schema{{
+				Name: "public",
+				Sequences: []models.Sequence{{
+					Name:       "seq_unchanged",
+					SchemaName: "public",
+					Increment:  1,
+				}},
+			}},
+			target: []models.Schema{{
+				Name: "public",
+				Sequences: []models.Sequence{{
+					Name:       "seq_unchanged",
+					SchemaName: "public",
+					Increment:  1,
+				}},
+			}},
+			expected: struct {
+				modifiedCount int
+				upSQL         string
+				downSQL       string
+			}{
+				modifiedCount: 0,
+				upSQL:         "",
+				downSQL:       "",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Act
+			diff := services.CompareSchemas(tt.source, tt.target)
+			migration := services.Generate("postgres", diff)
+
+			// Assert
+			assert.Len(t, diff.SequencesModified, tt.expected.modifiedCount, "unexpected number of modified sequences")
+			assert.Equal(t, tt.expected.modifiedCount, diff.Summary["sequences_modified"], "summary count mismatch")
+
+			assert.Equal(t, tt.expected.upSQL, migration.Up, "up migration SQL mismatch")
+			assert.Equal(t, tt.expected.downSQL, migration.Down, "down migration SQL mismatch")
+
+			// Verify that ChangedAttr is properly set for each modified sequence
+			for _, seqDiff := range diff.SequencesModified {
+				assert.NotEmpty(t, seqDiff.ChangedAttr, "ChangedAttr should not be empty for modified sequences")
+			}
+		})
+	}
+}

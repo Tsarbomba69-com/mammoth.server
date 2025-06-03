@@ -76,11 +76,21 @@ jobs:
           dockerfile: Dockerfile
           failure-threshold: warning
 
-      - name: 🛡️ Run Dockle (Dockerfile analysis)
-        if: ${{ github.event_name == 'push' }}
-        uses: docker://goodwithtech/dockle:v0.4.14
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🏗️ Build an image from Dockerfile
+        run: |
+          docker build -t ${{ env.DOCKER_IMAGE_NAME }}:scan .
+          
+      - name: 🛡️ Run Dockle
+        uses: goodwithtech/dockle-action@main
         with:
-          args: --exit-code 1 --exit-level fatal Dockerfile
+          image: "${{ env.DOCKER_IMAGE_NAME }}:scan"
+          format: "list"
+          exit-code: "1"
+          exit-level: "warn"
+          ignore: "CIS-DI-0001,DKL-DI-0006"
 
   # Uncomment the following job to enable Docker image build and push
   # build:

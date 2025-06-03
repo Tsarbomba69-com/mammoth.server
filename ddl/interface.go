@@ -19,6 +19,8 @@ type DDL interface {
 	DropSchemaSQL(schema string) string
 	DropSequenceSQL(schemaName string, name string) string
 	CreateSequenceSQL(seq models.Sequence) string
+	AlterSequenceSQL(seqChange models.SequenceChange) string
+	RevertAlterSequenceSQL(seqChange models.SequenceChange) string
 }
 
 func NewDDL(dialect string) DDL {

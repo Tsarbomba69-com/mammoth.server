@@ -23,15 +23,19 @@ func Generate(dialect string, diff models.SchemaDiff) MigrationScript {
 		upSQL.WriteString(gen.CreateSchemaSQL(schema))
 	}
 
-	// Create tables first (without foreign keys)
-	for _, table := range diff.TablesAdded {
-		upSQL.WriteString(gen.CreateTableSQL(table))
-	}
-
 	// Create sequences objects
 	for _, seq := range diff.SequencesAdded {
 		upSQL.WriteString(gen.CreateSequenceSQL(seq))
-		downSQL.WriteString(gen.DropSequenceSQL(seq.SchemaName, seq.Name))
+	}
+
+	for _, seqDiff := range diff.SequencesModified {
+		upSQL.WriteString(gen.AlterSequenceSQL(seqDiff))
+		downSQL.WriteString(gen.RevertAlterSequenceSQL(seqDiff))
+	}
+
+	// Create tables first (without foreign keys)
+	for _, table := range diff.TablesAdded {
+		upSQL.WriteString(gen.CreateTableSQL(table))
 	}
 
 	for _, table := range diff.TablesAdded {
@@ -43,6 +47,10 @@ func Generate(dialect string, diff models.SchemaDiff) MigrationScript {
 
 	for _, table := range diff.TablesAdded {
 		downSQL.WriteString(gen.DropTableSQL(table.SchemaName, table.Name))
+	}
+
+	for _, seq := range diff.SequencesAdded {
+		downSQL.WriteString(gen.DropSequenceSQL(seq.SchemaName, seq.Name))
 	}
 
 	for _, schema := range diff.SchemasAdded {
@@ -60,6 +68,10 @@ func Generate(dialect string, diff models.SchemaDiff) MigrationScript {
 		downSQL.WriteString(gen.CreateSchemaSQL(schema))
 	}
 
+	for _, seq := range diff.SequencesRemoved {
+		downSQL.WriteString(gen.CreateSequenceSQL(seq))
+	}
+
 	for _, table := range diff.TablesRemoved {
 		downSQL.WriteString(gen.CreateTableSQL(table))
 	}
@@ -73,6 +85,10 @@ func Generate(dialect string, diff models.SchemaDiff) MigrationScript {
 
 	for _, table := range diff.TablesRemoved {
 		upSQL.WriteString(gen.DropTableSQL(table.SchemaName, table.Name))
+	}
+
+	for _, seq := range diff.SequencesRemoved {
+		upSQL.WriteString(gen.DropSequenceSQL(seq.SchemaName, seq.Name))
 	}
 
 	for _, schema := range diff.SchemasRemoved {

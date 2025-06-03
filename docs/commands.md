@@ -47,3 +47,9 @@ go mod tidy
 ```bash
 go vet $file_dir
 ```
+
+## Build Go project
+
+```bash
+go build -o 
+```

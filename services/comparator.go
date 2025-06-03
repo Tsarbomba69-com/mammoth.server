@@ -22,7 +22,8 @@ var dialectQueries = map[string]models.QuerySet{
 			SELECT table_name as name,
 			table_schema AS schema_name
 			FROM information_schema.tables
-			WHERE table_schema = current_schema()
+			WHERE table_schema NOT LIKE 'pg_%'
+			AND table_schema != 'information_schema'
 			ORDER BY table_name
 		`,
 		Column: `
@@ -43,7 +44,8 @@ var dialectQueries = map[string]models.QuerySet{
 				) AS is_primary,
 				c.column_default AS default_value
 			FROM information_schema.columns c
-			WHERE c.table_schema = current_schema()
+			WHERE c.table_schema NOT LIKE 'pg_%'
+			AND c.table_schema != 'information_schema'
 			ORDER BY c.table_name, c.ordinal_position
 		`,
 		Index: `
@@ -93,7 +95,8 @@ var dialectQueries = map[string]models.QuerySet{
 					AND rc.constraint_schema = tc.table_schema
 			WHERE
 				tc.constraint_type = 'FOREIGN KEY'
-				AND tc.table_schema = current_schema()
+				AND tc.table_schema NOT LIKE 'pg_%' 
+				AND tc.table_schema != 'information_schema'
 			ORDER BY
 				tc.table_name,
 				tc.constraint_name,
@@ -109,7 +112,8 @@ var dialectQueries = map[string]models.QuerySet{
                 increment,
                 cycle_option AS is_cyclic
             FROM information_schema.sequences
-            WHERE sequence_schema = current_schema()
+            WHERE sequence_schema NOT LIKE 'pg_%' 
+			AND sequence_schema != 'information_schema'
             ORDER BY sequence_name
         `,
 		SequenceOwnership: `
@@ -336,7 +340,7 @@ func DumpSchema(db *gorm.DB) ([]models.Schema, error) {
 	}()
 
 	go func() {
-		seqs, err := getAllSequence(db)
+		seqs, err := getAllSequences(db)
 		if err != nil {
 			errChan <- err
 			return
@@ -390,7 +394,7 @@ func DumpSchema(db *gorm.DB) ([]models.Schema, error) {
 	return schemas, nil
 }
 
-func getAllSequence(db *gorm.DB) ([]models.Sequence, error) {
+func getAllSequences(db *gorm.DB) ([]models.Sequence, error) {
 	var sequences []models.Sequence
 
 	qs, err := getQuerySet(db)
@@ -425,6 +429,7 @@ func getAllSequence(db *gorm.DB) ([]models.Sequence, error) {
 			&seq.MinValue,
 			&seq.MaxValue,
 			&seq.Increment,
+			// &seq.Cache,
 			&isCyclic,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan sequence row: %w", err)
@@ -438,7 +443,7 @@ func getAllSequence(db *gorm.DB) ([]models.Sequence, error) {
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error after reading sequence rows: %w", err)
 	}
-
+	// TODO: Implement sequence ownership query if needed
 	// if qs.SequenceOwnership != "" {
 	// 	panic("Sequence ownership query not implemented for this dialect")
 	// }
@@ -621,7 +626,7 @@ func CompareSchemas(source, target []models.Schema) models.SchemaDiff {
 func compareSequences(source, target models.Sequence) models.SequenceChange {
 	// Convert sequences to maps for easier comparison
 
-	if target.Name == source.Name {
+	if target.Name == source.Name && target.SchemaName == source.SchemaName {
 		if !reflect.DeepEqual(source, target) {
 			var changed []string
 			if source.Increment != target.Increment {
@@ -635,6 +640,12 @@ func compareSequences(source, target models.Sequence) models.SequenceChange {
 			}
 			if source.MinValue != target.MinValue {
 				changed = append(changed, "min_value")
+			}
+			// if source.Cache != target.Cache {
+			// 	changed = append(changed, "cache")
+			// }
+			if source.StartValue != target.StartValue {
+				changed = append(changed, "start_value")
 			}
 
 			return models.SequenceChange{
@@ -893,12 +904,12 @@ func getAllColumns(db *gorm.DB) (map[string][]models.Column, error) {
 	}
 
 	var columns []struct {
-		TableName  string
-		ColumnName string
-		DataType   string
-		IsNullable string
-		IsPrimary  bool
-		Default    *string
+		TableName    string
+		ColumnName   string
+		DataType     string
+		IsNullable   string
+		IsPrimary    bool
+		DefaultValue *string
 	}
 
 	if err := db.Raw(qs.Column).Scan(&columns).Error; err != nil {
@@ -908,8 +919,8 @@ func getAllColumns(db *gorm.DB) (map[string][]models.Column, error) {
 	result := make(map[string][]models.Column)
 	for _, c := range columns {
 		defaultValue := ""
-		if c.Default != nil {
-			defaultValue = *c.Default
+		if c.DefaultValue != nil {
+			defaultValue = *c.DefaultValue
 		}
 
 		result[c.TableName] = append(result[c.TableName], models.Column{

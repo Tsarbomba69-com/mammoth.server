@@ -30,13 +30,14 @@ type Index struct {
 }
 
 type Sequence struct {
-	Name          string
-	SchemaName    string
-	StartValue    int64
-	MinValue      int64
-	MaxValue      int64
-	Increment     int64
-	IsCyclic      bool
+	Name       string
+	SchemaName string
+	StartValue int64
+	MinValue   int64
+	MaxValue   int64
+	Increment  int64
+	IsCyclic   bool
+	// Cache         int64
 	OwnedByTable  string // Only populated if the sequence is owned by a table column
 	OwnedByColumn string
 }
