@@ -27,7 +27,6 @@ FROM scratch
 
 # Copy the binary
 WORKDIR /app
-COPY --from=builder /app/.env .
 COPY --from=builder /app/main .
 
 # Uncomment if your application needs these

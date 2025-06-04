@@ -79,10 +79,13 @@ jobs:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
 
+      - name: 📄 Write .env to disk (runtime only)
+        run: echo "${{ secrets.ENV_FILE }}" > .env
+
       - name: 🏗️ Build an image from Dockerfile
-        run: |
-          echo "${{ secrets.ENV_FILE }}" > .env
-          docker build -t ${{ env.DOCKER_IMAGE_NAME }}:scan .
+        env:
+          DOCKER_CONTENT_TRUST: 1
+        run: docker build -t ${{ env.DOCKER_IMAGE_NAME }}:scan .
 
       - name: 🛡️ Run Dockle
         uses: goodwithtech/dockle-action@main
@@ -92,6 +95,9 @@ jobs:
           exit-code: "1"
           exit-level: "warn"
           ignore: "CIS-DI-0001,DKL-DI-0006"
+
+      - name: 🧪 Run container with .env (optional test)
+        run: docker run --rm --env-file .env ${{ env.DOCKER_IMAGE_NAME }}:scan
 
   # Uncomment the following job to enable Docker image build and push
   # build:
