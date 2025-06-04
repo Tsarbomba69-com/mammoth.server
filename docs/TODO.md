@@ -8,7 +8,7 @@
 - [x] Add schema name for the referenced table in foreign key constraint.
 - [x] Make code CI compliant.
 - [x] Dump schema info for all schemas.
-- [ ] dockerfile-validation job keeps failing.
+- [x] dockerfile-validation job keeps failing.
 
 ## Features
 

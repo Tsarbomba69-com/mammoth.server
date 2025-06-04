@@ -36,7 +36,7 @@ ENCRYPTION_KEY=your-encryption-key-that-its-32-characters-long
 EOL
 
 # (Optional) Start the database service
-docker compose -f dev-docker-compose.yml --env-file .env up -d --build
+docker compose -f docker-dev-compose.yml --env-file .env up -d --build
 go build -o mammoth
 ```
 
