@@ -96,7 +96,7 @@ jobs:
       - name: 🧪 Run container with .env (optional test)
         run: |-
           echo "${{ secrets.ENV_FILE }}" > .env
-          docker run --rm --env-file .env ${{ env.DOCKER_IMAGE_NAME }}:scan
+          docker run --rm --env-file .env -v "$PWD/.env:/app/.env" ${{ env.DOCKER_IMAGE_NAME }}:scan
 
   # Uncomment the following job to enable Docker image build and push
   # build:
