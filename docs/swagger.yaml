@@ -1,19 +1,6 @@
 basePath: /
 definitions:
-  models.ColumnChange:
-    properties:
-      changed_attributes:
-        items:
-          type: string
-        type: array
-      name:
-        type: string
-      source:
-        $ref: '#/definitions/models.ColumnInfo'
-      target:
-        $ref: '#/definitions/models.ColumnInfo'
-    type: object
-  models.ColumnInfo:
+  models.Column:
     properties:
       data_type:
         type: string
@@ -26,7 +13,7 @@ definitions:
       name:
         type: string
     type: object
-  models.ForeignKeyChange:
+  models.ColumnChange:
     properties:
       changed_attributes:
         items:
@@ -35,11 +22,11 @@ definitions:
       name:
         type: string
       source:
-        $ref: '#/definitions/models.ForeignKeyInfo'
+        $ref: '#/definitions/models.Column'
       target:
-        $ref: '#/definitions/models.ForeignKeyInfo'
+        $ref: '#/definitions/models.Column'
     type: object
-  models.ForeignKeyInfo:
+  models.ForeignKey:
     properties:
       columns:
         items:
@@ -58,7 +45,7 @@ definitions:
       referencedTable:
         type: string
     type: object
-  models.IndexChange:
+  models.ForeignKeyChange:
     properties:
       changed_attributes:
         items:
@@ -67,11 +54,11 @@ definitions:
       name:
         type: string
       source:
-        $ref: '#/definitions/models.IndexInfo'
+        $ref: '#/definitions/models.ForeignKey'
       target:
-        $ref: '#/definitions/models.IndexInfo'
+        $ref: '#/definitions/models.ForeignKey'
     type: object
-  models.IndexInfo:
+  models.Index:
     properties:
       columns:
         items:
@@ -84,8 +71,49 @@ definitions:
       name:
         type: string
     type: object
+  models.IndexChange:
+    properties:
+      changed_attributes:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      source:
+        $ref: '#/definitions/models.Index'
+      target:
+        $ref: '#/definitions/models.Index'
+    type: object
   models.SchemaDiff:
     properties:
+      schemas_added:
+        items:
+          type: string
+        type: array
+      schemas_removed:
+        items:
+          type: string
+        type: array
+      schemas_same:
+        items:
+          type: string
+        type: array
+      sequences_added:
+        items:
+          $ref: '#/definitions/models.Sequence'
+        type: array
+      sequences_modified:
+        items:
+          $ref: '#/definitions/models.SequenceChange'
+        type: array
+      sequences_removed:
+        items:
+          $ref: '#/definitions/models.Sequence'
+        type: array
+      sequences_same:
+        items:
+          type: string
+        type: array
       summary:
         additionalProperties:
           type: integer
@@ -107,11 +135,48 @@ definitions:
           type: string
         type: array
     type: object
+  models.Sequence:
+    properties:
+      increment:
+        type: integer
+      isCyclic:
+        type: boolean
+      maxValue:
+        type: integer
+      minValue:
+        type: integer
+      name:
+        type: string
+      ownedByColumn:
+        type: string
+      ownedByTable:
+        description: Cache         int64
+        type: string
+      schemaName:
+        type: string
+      startValue:
+        type: integer
+    type: object
+  models.SequenceChange:
+    properties:
+      changed_attributes:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      schemaName:
+        type: string
+      source:
+        $ref: '#/definitions/models.Sequence'
+      target:
+        $ref: '#/definitions/models.Sequence'
+    type: object
   models.TableDiff:
     properties:
       columns_added:
         items:
-          $ref: '#/definitions/models.ColumnInfo'
+          $ref: '#/definitions/models.Column'
         type: array
       columns_modified:
         items:
@@ -119,31 +184,31 @@ definitions:
         type: array
       columns_removed:
         items:
-          $ref: '#/definitions/models.ColumnInfo'
+          $ref: '#/definitions/models.Column'
         type: array
       columns_same:
         items:
-          $ref: '#/definitions/models.ColumnInfo'
+          $ref: '#/definitions/models.Column'
         type: array
-      foreign_key_info_added:
+      foreign_key_added:
         items:
-          $ref: '#/definitions/models.ForeignKeyInfo'
+          $ref: '#/definitions/models.ForeignKey'
         type: array
-      foreign_key_info_modified:
+      foreign_key_modified:
         items:
           $ref: '#/definitions/models.ForeignKeyChange'
         type: array
-      foreign_key_info_removed:
+      foreign_key_removed:
         items:
-          $ref: '#/definitions/models.ForeignKeyInfo'
+          $ref: '#/definitions/models.ForeignKey'
         type: array
-      foreign_key_info_same:
+      foreign_key_same:
         items:
-          $ref: '#/definitions/models.ForeignKeyInfo'
+          $ref: '#/definitions/models.ForeignKey'
         type: array
       indexes_added:
         items:
-          $ref: '#/definitions/models.IndexInfo'
+          $ref: '#/definitions/models.Index'
         type: array
       indexes_modified:
         items:
@@ -151,12 +216,14 @@ definitions:
         type: array
       indexes_removed:
         items:
-          $ref: '#/definitions/models.IndexInfo'
+          $ref: '#/definitions/models.Index'
         type: array
       indexes_same:
         items:
-          $ref: '#/definitions/models.IndexInfo'
+          $ref: '#/definitions/models.Index'
         type: array
+      schema_name:
+        type: string
       table_name:
         type: string
     type: object

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"runtime"
 	"strings"
 
 	"github.com/Tsarbomba69-com/mammoth.server/models"
@@ -263,21 +262,17 @@ func (p PostgreSQLDDL) DumpDatabaseSQL(connection models.DBConnection, db *gorm.
 		return "", fmt.Errorf("failed to decrypt password: %v", err)
 	}
 
-	pgDumpPath, err := getPgDumpPath()
-	if err != nil {
-		return "", fmt.Errorf("failed to get pg_dump path: %v", err)
-	}
-
 	err = os.Setenv("PGPASSWORD", pass) // Set the password for pg_dump
 	if err != nil {
 		return "", fmt.Errorf("failed to set PGPASSWORD: %v", err)
 	}
 
-	cmd := exec.Command(pgDumpPath,
+	cmd := exec.Command("pg_dump",
 		"-h", connection.Host,
 		"-U", connection.User,
 		"-d", connection.DBName,
-		"-F", "plain", // plain SQL format
+		"-F", "t",
+		"-v",
 	)
 	cmd.Stdout = &out
 	cmd.Stderr = &stderr
@@ -385,24 +380,4 @@ func alterSequece(seqChange models.SequenceChange, seq models.Sequence) string {
 
 	return fmt.Sprintf("ALTER SEQUENCE \"%s\".\"%s\" %s;\n",
 		seq.SchemaName, seq.Name, strings.Join(clauses, " "))
-}
-
-func getPgDumpPath() (string, error) {
-	// Check the OS using runtime.GOOS
-	switch runtime.GOOS {
-	case "windows":
-		// Windows-specific path to pg_dump
-		// Assuming pg_dump is installed with PostgreSQL (e.g., C:\Program Files\PostgreSQL\12\bin)
-		// You can update this to your actual installation path
-		return "C:\\Program Files\\PostgreSQL\\17\\bin\\pg_dump.exe", nil
-	case "darwin":
-		// MacOS - installed via Homebrew (default location)
-		return "/usr/local/bin/pg_dump", nil
-	case "linux":
-		// Linux - typically available via package manager
-		// Just check if it's in the system path
-		return "pg_dump", nil
-	default:
-		return "", fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
-	}
 }

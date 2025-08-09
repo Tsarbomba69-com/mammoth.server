@@ -25,3 +25,6 @@ go.work.sum
 .env
 .env.dev
 .env.staging
+
+# Build folder
+.build/

@@ -213,27 +213,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "models.ColumnChange": {
-            "type": "object",
-            "properties": {
-                "changed_attributes": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "name": {
-                    "type": "string"
-                },
-                "source": {
-                    "$ref": "#/definitions/models.ColumnInfo"
-                },
-                "target": {
-                    "$ref": "#/definitions/models.ColumnInfo"
-                }
-            }
-        },
-        "models.ColumnInfo": {
+        "models.Column": {
             "type": "object",
             "properties": {
                 "data_type": {
@@ -253,7 +233,7 @@ const docTemplate = `{
                 }
             }
         },
-        "models.ForeignKeyChange": {
+        "models.ColumnChange": {
             "type": "object",
             "properties": {
                 "changed_attributes": {
@@ -266,14 +246,14 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "source": {
-                    "$ref": "#/definitions/models.ForeignKeyInfo"
+                    "$ref": "#/definitions/models.Column"
                 },
                 "target": {
-                    "$ref": "#/definitions/models.ForeignKeyInfo"
+                    "$ref": "#/definitions/models.Column"
                 }
             }
         },
-        "models.ForeignKeyInfo": {
+        "models.ForeignKey": {
             "type": "object",
             "properties": {
                 "columns": {
@@ -302,7 +282,7 @@ const docTemplate = `{
                 }
             }
         },
-        "models.IndexChange": {
+        "models.ForeignKeyChange": {
             "type": "object",
             "properties": {
                 "changed_attributes": {
@@ -315,14 +295,14 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "source": {
-                    "$ref": "#/definitions/models.IndexInfo"
+                    "$ref": "#/definitions/models.ForeignKey"
                 },
                 "target": {
-                    "$ref": "#/definitions/models.IndexInfo"
+                    "$ref": "#/definitions/models.ForeignKey"
                 }
             }
         },
-        "models.IndexInfo": {
+        "models.Index": {
             "type": "object",
             "properties": {
                 "columns": {
@@ -342,9 +322,71 @@ const docTemplate = `{
                 }
             }
         },
+        "models.IndexChange": {
+            "type": "object",
+            "properties": {
+                "changed_attributes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "source": {
+                    "$ref": "#/definitions/models.Index"
+                },
+                "target": {
+                    "$ref": "#/definitions/models.Index"
+                }
+            }
+        },
         "models.SchemaDiff": {
             "type": "object",
             "properties": {
+                "schemas_added": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "schemas_removed": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "schemas_same": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "sequences_added": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Sequence"
+                    }
+                },
+                "sequences_modified": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.SequenceChange"
+                    }
+                },
+                "sequences_removed": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Sequence"
+                    }
+                },
+                "sequences_same": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "summary": {
                     "type": "object",
                     "additionalProperties": {
@@ -377,13 +419,69 @@ const docTemplate = `{
                 }
             }
         },
+        "models.Sequence": {
+            "type": "object",
+            "properties": {
+                "increment": {
+                    "type": "integer"
+                },
+                "isCyclic": {
+                    "type": "boolean"
+                },
+                "maxValue": {
+                    "type": "integer"
+                },
+                "minValue": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "ownedByColumn": {
+                    "type": "string"
+                },
+                "ownedByTable": {
+                    "description": "Cache         int64",
+                    "type": "string"
+                },
+                "schemaName": {
+                    "type": "string"
+                },
+                "startValue": {
+                    "type": "integer"
+                }
+            }
+        },
+        "models.SequenceChange": {
+            "type": "object",
+            "properties": {
+                "changed_attributes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "schemaName": {
+                    "type": "string"
+                },
+                "source": {
+                    "$ref": "#/definitions/models.Sequence"
+                },
+                "target": {
+                    "$ref": "#/definitions/models.Sequence"
+                }
+            }
+        },
         "models.TableDiff": {
             "type": "object",
             "properties": {
                 "columns_added": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/models.ColumnInfo"
+                        "$ref": "#/definitions/models.Column"
                     }
                 },
                 "columns_modified": {
@@ -395,43 +493,43 @@ const docTemplate = `{
                 "columns_removed": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/models.ColumnInfo"
+                        "$ref": "#/definitions/models.Column"
                     }
                 },
                 "columns_same": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/models.ColumnInfo"
+                        "$ref": "#/definitions/models.Column"
                     }
                 },
-                "foreign_key_info_added": {
+                "foreign_key_added": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/models.ForeignKeyInfo"
+                        "$ref": "#/definitions/models.ForeignKey"
                     }
                 },
-                "foreign_key_info_modified": {
+                "foreign_key_modified": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/models.ForeignKeyChange"
                     }
                 },
-                "foreign_key_info_removed": {
+                "foreign_key_removed": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/models.ForeignKeyInfo"
+                        "$ref": "#/definitions/models.ForeignKey"
                     }
                 },
-                "foreign_key_info_same": {
+                "foreign_key_same": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/models.ForeignKeyInfo"
+                        "$ref": "#/definitions/models.ForeignKey"
                     }
                 },
                 "indexes_added": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/models.IndexInfo"
+                        "$ref": "#/definitions/models.Index"
                     }
                 },
                 "indexes_modified": {
@@ -443,14 +541,17 @@ const docTemplate = `{
                 "indexes_removed": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/models.IndexInfo"
+                        "$ref": "#/definitions/models.Index"
                     }
                 },
                 "indexes_same": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/models.IndexInfo"
+                        "$ref": "#/definitions/models.Index"
                     }
+                },
+                "schema_name": {
+                    "type": "string"
                 },
                 "table_name": {
                     "type": "string"
