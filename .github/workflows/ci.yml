@@ -96,7 +96,7 @@ jobs:
       - name: 🧪 Run container with .env (optional test)
         run: |-
           echo "${{ secrets.ENV_FILE }}" > .env
-          docker compose -f docker-test-compose.yml --env-file .env up -d --build
+          docker compose -f docker-compose.test.yml --env-file .env up -d --build
 
   # Uncomment the following job to enable Docker image build and push
   # build:
